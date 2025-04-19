@@ -1,4 +1,4 @@
-# Projektkonzept: Uncanny Valley Reloaded – Interaktive NPCs mit LLM-Intelligenz
+# Projektkonzept: Uncanny Npc – Interaktive NPCs mit LLM-Intelligenz
 
 ## Zielsetzung
 Ziel dieses Projekts ist die Schaffung einer immersiven VR-Erfahrung, bei der Nutzer:innen mit virtuellen Charakteren (NPCs) interagieren, die mithilfe von Large Language Models (LLMs) gesteuert werden. Dabei soll untersucht werden, wie glaubwürdig diese NPCs auf verschiedene Nutzer:innen wirken und inwiefern sie den sogenannten *Uncanny Valley*-Effekt auslösen.
