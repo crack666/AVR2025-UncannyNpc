@@ -12,10 +12,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 737a16f3dc2291f41bf469ebf5beb4d7, type: 3}
   m_Name: OpenAIRealtimeSettings
   m_EditorClassIdentifier: 
-  apiKey: insert openai key hereYOUR-OPENAI-API-KEY-HERE
+  apiKey: insert openai key hereproj-Ho0VuLABRvqQEZHvQQEkFvygONRBiGXAdyf3pj8Zk1b951X0bRcukuGluCqJMiHhqOeHmAyngLT3BlbkFJXUU1eucCdrwK2S6ZWJwpaQdLyIkCHQ3NE-I_8nFG-GOgoqaD9Not8Yc7wDxQwWy1maAD4QSVUA
+  baseUrl: wss://api.openai.com/v1/realtime
   model: gpt-4o-realtime-preview-2024-10-01
-  voiceModel: alloy
-  systemPrompt: You are a helpful AI assistant. You are speaking to someone in a virtual world. Keep your responses conversational and engaging.
-  maxTokens: 150
+  sampleRate: 24000
+  audioChunkSizeMs: 100
+  microphoneVolume: 1
+  voice: alloy
   temperature: 0.7
-  enableFunctionCalling: 0
+  systemPrompt: You are a helpful AI assistant. You are speaking to someone in a
+    virtual world. Keep your responses conversational and engaging.
+  voiceModel: alloy
+  enableDebugLogging: 1
+  logAudioData: 0
