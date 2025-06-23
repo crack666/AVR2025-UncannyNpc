@@ -1,7 +1,6 @@
 using UnityEngine;
 using UnityEngine.Events;
 using OpenAI.RealtimeAPI;
-using OpenAI.Models;
 
 namespace NPC
 {
@@ -10,9 +9,8 @@ namespace NPC
     /// Handles conversation flow, animations, and audio playback
     /// </summary>
     public class NPCController : MonoBehaviour
-    {
-        [Header("Components")]
-        [SerializeField] private RealtimeClientV2 realtimeClient;
+    {        [Header("Components")]
+        [SerializeField] private RealtimeClient realtimeClient;
         [SerializeField] private RealtimeAudioManager audioManager;
         [SerializeField] private Animator npcAnimator;
         [SerializeField] private AudioSource audioSource;
@@ -54,10 +52,9 @@ namespace NPC
         #region Unity Lifecycle
         
         private void Awake()
-        {
-            // Initialize components if not assigned
+        {            // Initialize components if not assigned
             if (realtimeClient == null)
-                realtimeClient = FindObjectOfType<RealtimeClientV2>();
+                realtimeClient = FindObjectOfType<RealtimeClient>();
             if (audioManager == null)
                 audioManager = FindObjectOfType<RealtimeAudioManager>();
             if (npcAnimator == null)
