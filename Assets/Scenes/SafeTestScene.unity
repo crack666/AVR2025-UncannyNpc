@@ -824,7 +824,7 @@ Transform:
   m_GameObject: {fileID: 519420028}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalPosition: {x: 553.6, y: 372.5, z: -1006.6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1035,7 +1035,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 797808026}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 890860026}
+        m_TargetAssemblyTypeName: Managers.NPCUIManager, Assembly-CSharp
+        m_MethodName: OnStartConversationClicked
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &797808026
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1084,27 +1096,27 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -6769691430286951708, guid: be34323a551d7624cb4fc4ddb30d639e, type: 3}
       propertyPath: m_LocalScale.x
-      value: 50
+      value: 250
       objectReference: {fileID: 0}
     - target: {fileID: -6769691430286951708, guid: be34323a551d7624cb4fc4ddb30d639e, type: 3}
       propertyPath: m_LocalScale.y
-      value: 50
+      value: 250
       objectReference: {fileID: 0}
     - target: {fileID: -6769691430286951708, guid: be34323a551d7624cb4fc4ddb30d639e, type: 3}
       propertyPath: m_LocalScale.z
-      value: 50
+      value: 250
       objectReference: {fileID: 0}
     - target: {fileID: -6769691430286951708, guid: be34323a551d7624cb4fc4ddb30d639e, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 387.7
+      value: 454
       objectReference: {fileID: 0}
     - target: {fileID: -6769691430286951708, guid: be34323a551d7624cb4fc4ddb30d639e, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.2
+      value: 86.1
       objectReference: {fileID: 0}
     - target: {fileID: -6769691430286951708, guid: be34323a551d7624cb4fc4ddb30d639e, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -4.938
+      value: -110
       objectReference: {fileID: 0}
     - target: {fileID: -6769691430286951708, guid: be34323a551d7624cb4fc4ddb30d639e, type: 3}
       propertyPath: m_LocalRotation.w
@@ -1187,9 +1199,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4eb49c56fa36e1149a96ca5151cb2237, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  connectButton: {fileID: 0}
+  connectButton: {fileID: 1440992699}
   disconnectButton: {fileID: 0}
-  startConversationButton: {fileID: 0}
+  startConversationButton: {fileID: 797808025}
   stopConversationButton: {fileID: 0}
   messageInputField: {fileID: 0}
   sendMessageButton: {fileID: 0}
@@ -1215,7 +1227,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   realtimeClient: {fileID: 0}
-  audioManager: {fileID: 0}
+  audioManager: {fileID: 890860028}
   npcAnimator: {fileID: 0}
   audioSource: {fileID: 0}
   npcName: AI Assistant
@@ -1290,6 +1302,8 @@ MonoBehaviour:
   vadThreshold: 0.02
   vadSilenceDuration: 1
   vadPrefixPadding: 0.3
+  useSmoothPlayback: 1
+  concatenationDelay: 0.2
   OnRecordingStarted:
     m_PersistentCalls:
       m_Calls: []
@@ -1455,7 +1469,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1440992700}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 890860026}
+        m_TargetAssemblyTypeName: Managers.NPCUIManager, Assembly-CSharp
+        m_MethodName: OnConnectClicked
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1440992700
 MonoBehaviour:
   m_ObjectHideFlags: 0

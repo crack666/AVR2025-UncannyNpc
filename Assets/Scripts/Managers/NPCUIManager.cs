@@ -407,6 +407,19 @@ namespace Managers
                 Debug.Log($"[DEBUG] {status}");
             }
         }
+          [ContextMenu("Toggle Smooth Audio Playback")]
+        private void TestToggleSmoothPlayback()
+        {
+            var audioManager = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeAudioManager>();
+            if (audioManager != null)
+            {
+                bool newMode = !audioManager.UseSmoothPlayback;
+                audioManager.UseSmoothPlayback = newMode;
+                string status = $"Smooth audio playback: {(newMode ? "ON" : "OFF")}";
+                UpdateStatus(status, systemMessageColor);
+                Debug.Log($"[DEBUG] {status}");
+            }
+        }
         
         #endregion
     }

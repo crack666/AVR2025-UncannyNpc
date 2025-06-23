@@ -33,6 +33,10 @@ namespace OpenAI.RealtimeAPI
         [SerializeField] private float vadSilenceDuration = 1.0f;
         [SerializeField] private float vadPrefixPadding = 0.3f;
         
+        [Header("Audio Playback Settings")]
+        [SerializeField] private bool useSmoothPlayback = true;
+        [SerializeField] private float concatenationDelay = 0.2f;
+        
         [Header("Events")]
         public UnityEvent OnRecordingStarted;
         public UnityEvent OnRecordingStopped;
@@ -65,6 +69,10 @@ namespace OpenAI.RealtimeAPI
         private Queue<AudioClip> audioPlaybackQueue = new Queue<AudioClip>();
         private bool isPlayingAudio = false;
         private Coroutine playbackCoroutine = null;
+          // Audio concatenation for smooth playback
+        private List<AudioClip> pendingChunks = new List<AudioClip>();
+        private bool isProcessingConcatenation = false;
+        private float lastChunkReceiveTime = 0f;
         
         // Properties
         public bool IsRecording => isRecording;
@@ -72,6 +80,32 @@ namespace OpenAI.RealtimeAPI
         public float CurrentMicrophoneLevel => currentMicrophoneLevel;
         public bool VoiceDetected => voiceDetected;
         public string CurrentMicrophone => currentMicrophone;
+        
+        /// <summary>
+        /// Aktiviert/deaktiviert Smooth Playback Modus
+        /// </summary>
+        public bool UseSmoothPlayback 
+        { 
+            get => useSmoothPlayback; 
+            set 
+            { 
+                useSmoothPlayback = value;
+                Log($"[CONFIG] Smooth playback mode: {(value ? "ENABLED" : "DISABLED")}");
+            } 
+        }
+        
+        /// <summary>
+        /// Setzt die Concatenation-Verzögerung
+        /// </summary>
+        public float ConcatenationDelay 
+        { 
+            get => concatenationDelay; 
+            set 
+            { 
+                concatenationDelay = Mathf.Clamp(value, 0.05f, 1.0f);
+                Log($"[CONFIG] Concatenation delay set to: {concatenationDelay:F2}s");
+            } 
+        }
         
         #region Unity Lifecycle
         
@@ -491,6 +525,23 @@ namespace OpenAI.RealtimeAPI
         {
             if (audioClip == null || playbackAudioSource == null) return;
             
+            if (useSmoothPlayback)
+            {
+                // Use smooth concatenation playback
+                PlayReceivedAudioSmooth(audioClip);
+            }
+            else
+            {
+                // Use traditional queue playback
+                PlayReceivedAudioQueued(audioClip);
+            }
+        }
+        
+        /// <summary>
+        /// Spielt Audio über traditionelle Queue ab
+        /// </summary>
+        private void PlayReceivedAudioQueued(AudioClip audioClip)
+        {
             try
             {
                 // Thread-safe enqueue
@@ -559,11 +610,10 @@ namespace OpenAI.RealtimeAPI
                 
                 Log($"[QUEUE] Dequeued audio clip: {clip.length:F2}s (Remaining: {audioPlaybackQueue.Count})");
                 
-                // Stop any currently playing audio
-                if (playbackAudioSource.isPlaying)
+                // Only stop if really necessary - avoid unnecessary interruptions
+                if (playbackAudioSource.isPlaying && playbackAudioSource.clip != clip)
                 {
-                    playbackAudioSource.Stop();
-                    Log("[QUEUE] Stopped previous audio to play new clip");
+                    Log("[QUEUE] Stopping previous audio for new clip");
                 }
                 
                 playbackAudioSource.clip = clip;
@@ -572,20 +622,21 @@ namespace OpenAI.RealtimeAPI
                 OnAudioPlaybackStarted?.Invoke();
                 Log($"[QUEUE] Now playing audio: {clip.length:F2}s");
                 
-                // Wait for the clip to finish playing
+                // More precise timing - wait for the actual audio to finish
+                float startTime = Time.time;
                 float clipLength = clip.length;
-                float playTime = 0f;
                 
-                while (playTime < clipLength && playbackAudioSource.isPlaying)
+                // Wait in smaller intervals for more responsive checking
+                while (Time.time - startTime < clipLength && playbackAudioSource.isPlaying)
                 {
-                    yield return new WaitForSeconds(0.1f);
-                    playTime += 0.1f;
+                    yield return new WaitForSeconds(0.02f); // 50fps checking instead of 10fps
                 }
                 
-                Log($"[QUEUE] Audio clip finished playing (played for {playTime:F2}s)");
+                float actualPlayTime = Time.time - startTime;
+                Log($"[QUEUE] Audio clip finished playing (played for {actualPlayTime:F2}s of {clipLength:F2}s)");
                 
-                // Small gap between clips to ensure clean playback
-                yield return new WaitForSeconds(0.05f);
+                // No artificial pause - immediately continue to next clip for smoother playback
+                // yield return new WaitForSeconds(0.05f); // Removed to reduce stuttering
             }
             
             // Reset state when done
@@ -593,6 +644,136 @@ namespace OpenAI.RealtimeAPI
             playbackCoroutine = null;
             OnAudioPlaybackFinished?.Invoke();
             Log("[QUEUE] Audio queue processing completed - all clips played");
+        }
+        
+        /// <summary>
+        /// Spielt empfangenen Audio-Clip ab (mit verbesserter Concatenation)
+        /// </summary>
+        public void PlayReceivedAudioSmooth(AudioClip audioClip)
+        {
+            if (audioClip == null || playbackAudioSource == null) return;
+            
+            try
+            {
+                // Add to pending chunks for concatenation
+                lock (pendingChunks)
+                {
+                    pendingChunks.Add(audioClip);
+                    lastChunkReceiveTime = Time.time;
+                    Log($"[SMOOTH] Added chunk to pending list: {audioClip.length:F2}s (Total pending: {pendingChunks.Count})");
+                }
+                
+                // Start concatenation process if not already running
+                if (!isProcessingConcatenation)
+                {
+                    StartCoroutine(ProcessPendingChunks());
+                }
+            }
+            catch (Exception e)
+            {
+                LogError($"Failed to queue audio for smooth playback: {e.Message}");
+            }
+        }
+          private IEnumerator ProcessPendingChunks()
+        {
+            isProcessingConcatenation = true;
+            Log("[SMOOTH] Started processing pending chunks");
+            
+            while (true)
+            {
+                // Wait for a pause in incoming chunks
+                yield return new WaitForSeconds(concatenationDelay);
+                
+                List<AudioClip> chunksToProcess = null;
+                lock (pendingChunks)
+                {
+                    // Check if we have chunks and no new ones arrived recently
+                    if (pendingChunks.Count > 0 && (Time.time - lastChunkReceiveTime) >= concatenationDelay)
+                    {
+                        chunksToProcess = new List<AudioClip>(pendingChunks);
+                        pendingChunks.Clear();
+                        Log($"[SMOOTH] Processing {chunksToProcess.Count} chunks for concatenation");
+                    }
+                    else if (pendingChunks.Count == 0)
+                    {
+                        // No more chunks to process
+                        break;
+                    }
+                }
+                
+                if (chunksToProcess != null && chunksToProcess.Count > 0)
+                {
+                    // Concatenate chunks into single clip
+                    AudioClip concatenatedClip = ConcatenateAudioClips(chunksToProcess);
+                    if (concatenatedClip != null)
+                    {
+                        // Play the concatenated clip using the queue system
+                        lock (audioPlaybackQueue)
+                        {
+                            audioPlaybackQueue.Enqueue(concatenatedClip);
+                            Log($"[SMOOTH] Enqueued concatenated clip: {concatenatedClip.length:F2}s");
+                        }
+                        
+                        // Start playback if not already playing
+                        if (!isPlayingAudio && playbackCoroutine == null)
+                        {
+                            Log("[SMOOTH] Starting playback for concatenated audio");
+                            isPlayingAudio = true;
+                            playbackCoroutine = StartCoroutine(PlaybackQueueCoroutine());
+                        }
+                    }
+                }
+            }
+            
+            isProcessingConcatenation = false;
+            Log("[SMOOTH] Finished processing pending chunks");
+        }
+        
+        private AudioClip ConcatenateAudioClips(List<AudioClip> clips)
+        {
+            if (clips == null || clips.Count == 0) return null;
+            
+            try
+            {
+                // Calculate total length and ensure all clips have same frequency/channels
+                int frequency = clips[0].frequency;
+                int channels = clips[0].channels;
+                int totalSamples = 0;
+                
+                foreach (var clip in clips)
+                {
+                    if (clip.frequency != frequency || clip.channels != channels)
+                    {
+                        LogWarning($"[SMOOTH] Audio format mismatch - expected {frequency}Hz/{channels}ch, got {clip.frequency}Hz/{clip.channels}ch");
+                        // Fallback to individual playback
+                        return null;
+                    }
+                    totalSamples += clip.samples;
+                }
+                
+                // Create new concatenated clip
+                AudioClip concatenated = AudioClip.Create($"Concatenated_{Time.time}", totalSamples, channels, frequency, false);
+                float[] concatenatedData = new float[totalSamples * channels];
+                
+                int currentIndex = 0;
+                foreach (var clip in clips)
+                {
+                    float[] clipData = new float[clip.samples * channels];
+                    clip.GetData(clipData, 0);
+                    System.Array.Copy(clipData, 0, concatenatedData, currentIndex, clipData.Length);
+                    currentIndex += clipData.Length;
+                }
+                
+                concatenated.SetData(concatenatedData, 0);
+                Log($"[SMOOTH] Created concatenated clip: {concatenated.length:F2}s from {clips.Count} chunks");
+                
+                return concatenated;
+            }
+            catch (Exception e)
+            {
+                LogError($"Failed to concatenate audio clips: {e.Message}");
+                return null;
+            }
         }
         
         #endregion
