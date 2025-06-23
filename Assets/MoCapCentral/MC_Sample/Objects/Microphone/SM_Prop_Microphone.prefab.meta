@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 7a6d5b2e3a9d07a4fb8d986feba3c452
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 291284
+  packageName: MC Sample - Believable 3D Animations by MoCap Central
+  packageVersion: 1.1.0
+  assetPath: Assets/MoCapCentral/MC_Sample/Objects/Microphone/SM_Prop_Microphone.prefab
+  uploadId: 680140

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c0fa4184743a9ea4b9e316a5e9de6461
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 291284
+  packageName: MC Sample - Believable 3D Animations by MoCap Central
+  packageVersion: 1.1.0
+  assetPath: Assets/MoCapCentral/MC_Sample/Animations/ctrl_OrcHammer_BwdLeft.controller
+  uploadId: 680140

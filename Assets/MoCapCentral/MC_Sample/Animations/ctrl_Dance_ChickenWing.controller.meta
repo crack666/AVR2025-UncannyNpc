@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: c5d77fc115570f14aac14b60ee8786a0
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 291284
+  packageName: MC Sample - Believable 3D Animations by MoCap Central
+  packageVersion: 1.1.0
+  assetPath: Assets/MoCapCentral/MC_Sample/Animations/ctrl_Dance_ChickenWing.controller
+  uploadId: 680140

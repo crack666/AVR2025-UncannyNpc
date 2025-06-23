@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: b45c98b5e9e6b0b47b2f2dc094f397f2
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 291284
+  packageName: MC Sample - Believable 3D Animations by MoCap Central
+  packageVersion: 1.1.0
+  assetPath: Assets/MoCapCentral/MC_Sample/Animations/ctrl_Undead_Eat.controller
+  uploadId: 680140

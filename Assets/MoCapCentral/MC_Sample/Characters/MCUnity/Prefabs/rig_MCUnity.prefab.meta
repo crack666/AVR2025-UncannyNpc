@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 32d5504af6283aa4e846e4cc79020f61
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 291284
+  packageName: MC Sample - Believable 3D Animations by MoCap Central
+  packageVersion: 1.1.0
+  assetPath: Assets/MoCapCentral/MC_Sample/Characters/MCUnity/Prefabs/rig_MCUnity.prefab
+  uploadId: 680140

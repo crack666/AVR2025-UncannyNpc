@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: fc4e1a11b3d72164390825eaaa5f093b
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 291284
+  packageName: MC Sample - Believable 3D Animations by MoCap Central
+  packageVersion: 1.1.0
+  assetPath: Assets/MoCapCentral/MC_Sample/Animations/ctrl_PretendHorse_CoconutHold.controller
+  uploadId: 680140

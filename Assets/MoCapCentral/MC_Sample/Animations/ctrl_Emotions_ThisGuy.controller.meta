@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 89052ee85109ae244b901f8b46932dd6
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 291284
+  packageName: MC Sample - Believable 3D Animations by MoCap Central
+  packageVersion: 1.1.0
+  assetPath: Assets/MoCapCentral/MC_Sample/Animations/ctrl_Emotions_ThisGuy.controller
+  uploadId: 680140

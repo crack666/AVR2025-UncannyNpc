@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: fdb2c29e382f2ef4a80ed0b6b269626d
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 9100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 291284
+  packageName: MC Sample - Believable 3D Animations by MoCap Central
+  packageVersion: 1.1.0
+  assetPath: Assets/MoCapCentral/MC_Sample/Animations/ctrl_Dance_LegsKickArmsPump.controller
+  uploadId: 680140

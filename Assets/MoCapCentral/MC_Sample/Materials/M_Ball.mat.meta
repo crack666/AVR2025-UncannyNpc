@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 48991521b58e3bb43a2ac5aa7d132dd5
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 291284
+  packageName: MC Sample - Believable 3D Animations by MoCap Central
+  packageVersion: 1.1.0
+  assetPath: Assets/MoCapCentral/MC_Sample/Materials/M_Ball.mat
+  uploadId: 680140

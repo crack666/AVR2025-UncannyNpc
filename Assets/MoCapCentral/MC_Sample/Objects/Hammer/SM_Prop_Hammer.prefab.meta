@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 79a27c00a4bb3b245b933d4fd0d1d228
+PrefabImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 291284
+  packageName: MC Sample - Believable 3D Animations by MoCap Central
+  packageVersion: 1.1.0
+  assetPath: Assets/MoCapCentral/MC_Sample/Objects/Hammer/SM_Prop_Hammer.prefab
+  uploadId: 680140

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: dd42802e8ac6bcb4eb080cdbd8a2e5f5
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 31900000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 291284
+  packageName: MC Sample - Believable 3D Animations by MoCap Central
+  packageVersion: 1.1.0
+  assetPath: Assets/MoCapCentral/MC_Sample/Characters/MCUnity/Meshes/mask_MCUnity.mask
+  uploadId: 680140
