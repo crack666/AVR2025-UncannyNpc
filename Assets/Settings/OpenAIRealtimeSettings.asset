@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 737a16f3dc2291f41bf469ebf5beb4d7, type: 3}
   m_Name: OpenAIRealtimeSettings
   m_EditorClassIdentifier: 
-  apiKey: removed
+  apiKey: insert openai key here
   baseUrl: wss://api.openai.com/v1/realtime
   model: gpt-4o-realtime-preview-2024-10-01
   sampleRate: 24000
