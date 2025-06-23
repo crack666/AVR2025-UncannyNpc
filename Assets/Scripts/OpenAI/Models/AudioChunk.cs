@@ -91,8 +91,7 @@ namespace OpenAI.RealtimeAPI
             int sampleCount = audioData.Length / 2 / channels;
             return (float)sampleCount / sampleRate;
         }
-        
-        /// <summary>
+          /// <summary>
         /// Prüft ob der Audio-Chunk gültig ist
         /// </summary>
         public bool IsValid()
@@ -102,61 +101,6 @@ namespace OpenAI.RealtimeAPI
                    audioData.Length % 2 == 0 && // PCM16 requires even byte count
                    sampleRate > 0 && 
                    channels > 0;
-        }
-    }
-    
-    /// <summary>
-    /// Zustand der Konversation und Audio-Pipeline
-    /// </summary>
-    [Serializable]
-    public class ConversationState
-    {
-        public bool isConnected;
-        public bool isRecording;
-        public bool isPlaying;
-        public bool isWaitingForResponse;
-        
-        public string currentResponseId;
-        public string currentItemId;
-        
-        public float lastAudioInputTime;
-        public float lastAudioOutputTime;
-        
-        public int totalAudioChunksSent;
-        public int totalAudioChunksReceived;
-        
-        public float averageLatency;
-        
-        public void Reset()
-        {
-            isConnected = false;
-            isRecording = false;
-            isPlaying = false;
-            isWaitingForResponse = false;
-            
-            currentResponseId = null;
-            currentItemId = null;
-            
-            lastAudioInputTime = 0f;
-            lastAudioOutputTime = 0f;
-            
-            totalAudioChunksSent = 0;
-            totalAudioChunksReceived = 0;
-            
-            averageLatency = 0f;
-        }
-        
-        public void UpdateLatency(float newLatency)
-        {
-            if (averageLatency == 0f)
-            {
-                averageLatency = newLatency;
-            }
-            else
-            {
-                // Exponential moving average
-                averageLatency = averageLatency * 0.9f + newLatency * 0.1f;
-            }
         }
     }
 }

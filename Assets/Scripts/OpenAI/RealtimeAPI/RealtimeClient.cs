@@ -43,19 +43,17 @@ namespace OpenAI.RealtimeAPI
         // Audio processing
         private Queue<AudioChunk> audioQueue = new Queue<AudioChunk>();
         private readonly object audioQueueLock = new object();
-        
-        // Session management
+          // Session management
         private string sessionId;
-        private ConversationState conversationState;
+        private SessionState sessionState;
         
         public bool IsConnected => isConnected;
         public string SessionId => sessionId;
         
         #region Unity Lifecycle
-        
-        private void Awake()
+          private void Awake()
         {
-            conversationState = new ConversationState();
+            sessionState = new SessionState();
             
             // Initialize events if not set
             OnMessageReceived ??= new UnityEvent<string>();
