@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace OpenAI.RealtimeAPI
 {
@@ -34,11 +35,11 @@ namespace OpenAI.RealtimeAPI
         public string voice;
         public string input_audio_format;
         public string output_audio_format;
-        public InputAudioTranscription input_audio_transcription;
-        public TurnDetection turn_detection;
+        public InputAudioTranscription input_audio_transcription;        public TurnDetection turn_detection;
+        [JsonConverter(typeof(ToolChoiceConverter))]
         public ToolChoice tool_choice;
-        public Tool[] tools;
-        public float temperature;
+        public Tool[] tools;        public float temperature;
+        [JsonConverter(typeof(MaxTokensConverter))]
         public int max_response_output_tokens;
     }
     
@@ -192,8 +193,8 @@ namespace OpenAI.RealtimeAPI
         public string[] modalities;
         public string instructions;
         public string voice;
-        public string output_audio_format;
-        public Tool[] tools;
+        public string output_audio_format;        public Tool[] tools;
+        [JsonConverter(typeof(ToolChoiceConverter))]
         public ToolChoice tool_choice;
         public float temperature;
         public int max_output_tokens;
@@ -353,6 +354,114 @@ namespace OpenAI.RealtimeAPI
                     instructions = instructions
                 }
             };
+        }
+    }
+    
+    /// <summary>
+    /// Custom JSON converter to handle tool_choice which can be either a string ("auto", "none") or an object
+    /// </summary>
+    public class ToolChoiceConverter : JsonConverter<ToolChoice>
+    {
+        public override void WriteJson(JsonWriter writer, ToolChoice value, JsonSerializer serializer)
+        {
+            if (value == null)
+            {
+                writer.WriteNull();
+                return;
+            }
+            
+            if (value.type == "auto" || value.type == "none" || value.type == "required")
+            {
+                writer.WriteValue(value.type);
+            }
+            else
+            {
+                writer.WriteStartObject();
+                writer.WritePropertyName("type");
+                writer.WriteValue(value.type);
+                if (!string.IsNullOrEmpty(value.name))
+                {
+                    writer.WritePropertyName("name");
+                    writer.WriteValue(value.name);
+                }
+                writer.WriteEndObject();
+            }
+        }
+        
+        public override ToolChoice ReadJson(JsonReader reader, Type objectType, ToolChoice existingValue, bool hasExistingValue, JsonSerializer serializer)
+        {
+            if (reader.TokenType == JsonToken.Null)
+                return null;
+                
+            if (reader.TokenType == JsonToken.String)
+            {
+                // Handle string values like "auto", "none", "required"
+                var stringValue = reader.Value.ToString();
+                return new ToolChoice
+                {
+                    type = stringValue,
+                    name = null
+                };
+            }
+            else if (reader.TokenType == JsonToken.StartObject)
+            {
+                // Handle object values like { "type": "function", "name": "functionName" }
+                var jObject = JObject.Load(reader);
+                return new ToolChoice
+                {
+                    type = jObject["type"]?.ToString(),
+                    name = jObject["name"]?.ToString()
+                };
+            }
+            
+            throw new JsonSerializationException($"Unexpected token type: {reader.TokenType}");
+        }
+    }
+    
+    /// <summary>
+    /// Custom JSON converter to handle max_response_output_tokens which can be either an integer or "inf" string
+    /// </summary>
+    public class MaxTokensConverter : JsonConverter<int>
+    {
+        public override void WriteJson(JsonWriter writer, int value, JsonSerializer serializer)
+        {
+            if (value == int.MaxValue || value < 0)
+            {
+                writer.WriteValue("inf");
+            }
+            else
+            {
+                writer.WriteValue(value);
+            }
+        }
+        
+        public override int ReadJson(JsonReader reader, Type objectType, int existingValue, bool hasExistingValue, JsonSerializer serializer)
+        {
+            if (reader.TokenType == JsonToken.Null)
+                return 0;
+                
+            if (reader.TokenType == JsonToken.String)
+            {
+                var stringValue = reader.Value.ToString();
+                if (stringValue.Equals("inf", StringComparison.OrdinalIgnoreCase) || 
+                    stringValue.Equals("infinity", StringComparison.OrdinalIgnoreCase))
+                {
+                    return int.MaxValue; // Use int.MaxValue to represent infinity
+                }
+                
+                if (int.TryParse(stringValue, out int result))
+                {
+                    return result;
+                }
+                
+                throw new JsonSerializationException($"Could not convert string '{stringValue}' to integer");
+            }
+            else if (reader.TokenType == JsonToken.Integer)
+            {
+                return Convert.ToInt32(reader.Value);
+            }
+            
+            throw new JsonSerializationException($"Unexpected token type: {reader.TokenType}");
         }
     }
 }

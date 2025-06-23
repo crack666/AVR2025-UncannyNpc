@@ -17,7 +17,7 @@ namespace OpenAI.RealtimeAPI
     {
         [Header("Connection Settings")]
         [SerializeField] private OpenAISettings settings;
-        [SerializeField] private bool autoConnect = false;
+        [SerializeField] private bool autoConnect = false; // Disabled to prevent conflicts with manual connect
         [SerializeField] private int maxRetries = 3;
         [SerializeField] private float retryDelay = 5f;
         
@@ -77,13 +77,16 @@ namespace OpenAI.RealtimeAPI
             ProcessMessageQueue();
             ProcessAudioQueue();
         }
-        
-        private void OnApplicationPause(bool pauseStatus)
+          private void OnApplicationPause(bool pauseStatus)
         {
+            // Only disconnect on pause for mobile platforms to save battery
+            #if UNITY_ANDROID || UNITY_IOS
             if (pauseStatus && isConnected)
             {
+                Debug.Log("RealtimeClient: App paused, disconnecting to save resources");
                 _ = DisconnectAsync();
             }
+            #endif
         }
         
         private void OnDestroy()
@@ -303,11 +306,11 @@ namespace OpenAI.RealtimeAPI
                         break;
                 }
                 
-                OnMessageReceived?.Invoke(jsonMessage);
-            }
+                OnMessageReceived?.Invoke(jsonMessage);            }
             catch (Exception ex)
             {
                 Debug.LogError($"RealtimeClient: Error processing message: {ex.Message}");
+                Debug.LogError($"RealtimeClient: Problematic message: {jsonMessage}");
                 OnError?.Invoke($"Message processing error: {ex.Message}");
             }
         }
@@ -539,6 +542,28 @@ namespace OpenAI.RealtimeAPI
             if (isConnected)
             {
                 _ = SendTextAsync(message);
+            }
+        }
+        
+        /// <summary>
+        /// Synchronous wrapper for ConnectAsync() - Unity UI Button compatible
+        /// </summary>
+        public void Connect()
+        {
+            if (!isConnected && !isConnecting)
+            {
+                _ = ConnectAsync();
+            }
+        }
+        
+        /// <summary>
+        /// Synchronous wrapper for DisconnectAsync() - Unity UI Button compatible
+        /// </summary>
+        public void Disconnect()
+        {
+            if (isConnected)
+            {
+                _ = DisconnectAsync();
             }
         }
         

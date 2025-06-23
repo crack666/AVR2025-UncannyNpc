@@ -31,9 +31,12 @@ namespace Managers
         [SerializeField] private Color userMessageColor = Color.blue;
         [SerializeField] private Color npcMessageColor = Color.green;
         [SerializeField] private Color systemMessageColor = Color.gray;
-        
-        private string conversationHistory = "";
+          private string conversationHistory = "";
         private int currentLineCount = 0;
+        
+        // UI state tracking to prevent spam
+        private bool lastConnectedState = false;
+        private NPCState lastNPCState = NPCState.Idle;
         
         #region Unity Lifecycle
           private void Awake()
@@ -48,6 +51,22 @@ namespace Managers
             SetupUI();
             SetupEventListeners();
             UpdateUIState();
+        }
+          private void Update()
+        {
+            // Only update UI state when connection status or NPC state changes
+            if (npcController != null)
+            {
+                bool currentConnected = npcController.IsConnected;
+                NPCState currentState = npcController.CurrentState;
+                
+                if (currentConnected != lastConnectedState || currentState != lastNPCState)
+                {
+                    UpdateUIState();
+                    lastConnectedState = currentConnected;
+                    lastNPCState = currentState;
+                }
+            }
         }
         
         private void OnDestroy()
@@ -131,11 +150,10 @@ namespace Managers
             }
         }
         
-        #endregion
-        
+        #endregion        
         #region Button Handlers
         
-        private void OnConnectClicked()
+        public void OnConnectClicked()
         {
             if (npcController != null)
             {
@@ -144,16 +162,15 @@ namespace Managers
             }
         }
         
-        private void OnDisconnectClicked()
+        public void OnDisconnectClicked()
         {
             if (npcController != null)
             {
                 npcController.DisconnectFromOpenAI();
                 UpdateStatus("Disconnecting...", systemMessageColor);
             }
-        }
-        
-        private void OnStartConversationClicked()
+        }        
+        public void OnStartConversationClicked()
         {
             if (npcController != null)
             {
@@ -162,7 +179,7 @@ namespace Managers
             }
         }
         
-        private void OnStopConversationClicked()
+        public void OnStopConversationClicked()
         {
             if (npcController != null)
             {
@@ -171,7 +188,7 @@ namespace Managers
             }
         }
         
-        private void OnSendMessageClicked()
+        public void OnSendMessageClicked()
         {
             SendCurrentMessage();
         }
@@ -223,8 +240,7 @@ namespace Managers
         {
             AddToConversation(message);
         }
-        
-        #endregion
+          #endregion
         
         #region UI Updates
         
@@ -235,6 +251,10 @@ namespace Managers
             bool isConnected = npcController.IsConnected;
             bool isIdle = npcController.CurrentState == NPCState.Idle;
             bool isListening = npcController.CurrentState == NPCState.Listening;
+            bool isSpeaking = npcController.CurrentState == NPCState.Speaking;
+            
+            // Only log when state actually changes (not every frame)
+            Debug.Log($"UI State Update - Connected: {isConnected}, State: {npcController.CurrentState}");
             
             // Update button states
             if (connectButton != null)
@@ -242,7 +262,7 @@ namespace Managers
             if (disconnectButton != null)
                 disconnectButton.interactable = isConnected;
             if (startConversationButton != null)
-                startConversationButton.interactable = isConnected && isIdle;
+                startConversationButton.interactable = isConnected && (isIdle || isSpeaking);
             if (stopConversationButton != null)
                 stopConversationButton.interactable = isConnected && isListening;
             if (sendMessageButton != null)
