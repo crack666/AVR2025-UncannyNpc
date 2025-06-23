@@ -78,11 +78,10 @@ namespace OpenAI.RealtimeAPI
             {
                 settings = Resources.Load<OpenAISettings>("OpenAISettings");
             }
-            
-            // Finde RealtimeClient falls nicht zugewiesen
+              // Finde RealtimeClient falls nicht zugewiesen
             if (realtimeClient == null)
             {
-                realtimeClient = FindObjectOfType<RealtimeClient>();
+                realtimeClient = FindFirstObjectByType<RealtimeClient>();
             }
             
             audioLevelHistory = new Queue<float>();
@@ -137,9 +136,8 @@ namespace OpenAI.RealtimeAPI
             
             // Setup Audio Buffers
             SetupAudioBuffers();
-            
-            // Subscribe to RealtimeClient events
-            realtimeClient.OnAudioReceived.AddListener(PlayReceivedAudio);
+              // Subscribe to RealtimeClient events
+            realtimeClient.OnAudioReceived.AddListener(PlayReceivedAudioChunk);
             
             isInitialized = true;
             
@@ -299,11 +297,10 @@ namespace OpenAI.RealtimeAPI
                     DestroyImmediate(microphoneClip);
                     microphoneClip = null;
                 }
-                
-                // Committe letzten Audio Buffer falls vorhanden
+                  // Committe letzten Audio Buffer falls vorhanden
                 if (realtimeClient != null && realtimeClient.IsConnected)
                 {
-                    realtimeClient.CommitAudioBuffer();
+                    _ = realtimeClient.CommitAudioBuffer();
                 }
                 
                 OnRecordingStopped?.Invoke();
@@ -386,8 +383,7 @@ namespace OpenAI.RealtimeAPI
                 }
             }
         }
-        
-        private void SendAudioChunk()
+          private void SendAudioChunk()
         {
             if (realtimeClient == null || !realtimeClient.IsConnected) return;
             
@@ -397,11 +393,11 @@ namespace OpenAI.RealtimeAPI
             // Konvertiere zu PCM16
             byte[] pcmData = AudioChunk.FloatToPCM16(processingBuffer);
             
-            // Erstelle Audio Chunk
+            // Erstelle Audio Chunk für bessere Datenstruktur
             AudioChunk chunk = new AudioChunk(pcmData, settings.SampleRate, 1);
             
-            // Sende an RealtimeClient
-            realtimeClient.SendAudioChunk(chunk);
+            // Sende an RealtimeClient (verwende die verfügbare Methode)
+            _ = realtimeClient.SendAudioAsync(chunk.audioData);
         }
         
         private void ApplyNoiseGate(float[] samples)
@@ -474,11 +470,10 @@ namespace OpenAI.RealtimeAPI
                 voiceDetected = false;
                 OnVoiceDetected?.Invoke(false);
                 Log("Voice activity ended");
-                
-                // Auto-commit bei VAD-Ende
+                  // Auto-commit bei VAD-Ende
                 if (realtimeClient != null && realtimeClient.IsConnected)
                 {
-                    realtimeClient.CommitAudioBuffer();
+                    _ = realtimeClient.CommitAudioBuffer();
                 }
             }
         }
@@ -508,6 +503,25 @@ namespace OpenAI.RealtimeAPI
             catch (Exception e)
             {
                 LogError($"Failed to play audio: {e.Message}");
+            }
+        }
+        
+        /// <summary>
+        /// Spielt empfangenen AudioChunk ab
+        /// </summary>
+        public void PlayReceivedAudioChunk(AudioChunk audioChunk)
+        {
+            if (audioChunk == null || !audioChunk.IsValid()) return;
+            
+            try
+            {
+                // Konvertiere AudioChunk zu AudioClip
+                var audioClip = audioChunk.ToAudioClip($"ReceivedAudio_{Time.time}");
+                PlayReceivedAudio(audioClip);
+            }
+            catch (System.Exception ex)
+            {
+                LogError($"Error playing received audio chunk: {ex.Message}");
             }
         }
         

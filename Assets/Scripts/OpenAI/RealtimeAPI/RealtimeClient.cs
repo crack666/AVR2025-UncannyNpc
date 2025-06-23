@@ -316,20 +316,13 @@ namespace OpenAI.RealtimeAPI
         
         #region Event Handlers
         
-        private void HandleAudioDelta(RealtimeEvent eventData)
-        {
+        private void HandleAudioDelta(RealtimeEvent eventData)        {
             if (eventData.delta != null && !string.IsNullOrEmpty(eventData.delta))
             {
                 try
                 {
                     var audioBytes = Convert.FromBase64String(eventData.delta);
-                    var audioChunk = new AudioChunk
-                    {
-                        data = audioBytes,
-                        format = AudioFormat.PCM16,
-                        sampleRate = 24000,
-                        channels = 1
-                    };
+                    var audioChunk = new AudioChunk(audioBytes, 24000, 1);
                     
                     lock (audioQueueLock)
                     {

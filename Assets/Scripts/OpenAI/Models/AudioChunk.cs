@@ -15,6 +15,9 @@ namespace OpenAI.RealtimeAPI
         public float timestamp;
         public int sequenceNumber;
         
+        // Property alias for compatibility
+        public byte[] data => audioData;
+        
         public AudioChunk(byte[] data, int rate = 24000, int channelCount = 1)
         {
             audioData = data;
@@ -101,6 +104,31 @@ namespace OpenAI.RealtimeAPI
                    audioData.Length % 2 == 0 && // PCM16 requires even byte count
                    sampleRate > 0 && 
                    channels > 0;
+        }
+        
+        /// <summary>
+        /// Erstellt ein Unity AudioClip aus diesem AudioChunk
+        /// </summary>
+        public AudioClip ToAudioClip(string clipName = "AudioChunk")
+        {
+            if (!IsValid()) return null;
+            
+            try
+            {
+                // Konvertiere PCM16 zu float samples
+                float[] samples = PCM16ToFloat(audioData);
+                
+                // Erstelle AudioClip
+                AudioClip audioClip = AudioClip.Create(clipName, samples.Length / channels, channels, sampleRate, false);
+                audioClip.SetData(samples, 0);
+                
+                return audioClip;
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"Error creating AudioClip: {ex.Message}");
+                return null;
+            }
         }
     }
 }

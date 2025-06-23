@@ -27,13 +27,12 @@ namespace Managers
         
         // Update timer
         private float lastUpdate;
-        
-        private void Awake()
+          private void Awake()
         {
             // Find components
-            realtimeClient = FindObjectOfType<RealtimeClient>();
-            npcController = FindObjectOfType<NPCController>();
-            audioManager = FindObjectOfType<RealtimeAudioManager>();
+            realtimeClient = FindFirstObjectByType<RealtimeClient>();
+            npcController = FindFirstObjectByType<NPCController>();
+            audioManager = FindFirstObjectByType<RealtimeAudioManager>();
             
             // Auto-find text component if not assigned
             if (debugText == null && debugTextTMP == null)
@@ -93,14 +92,13 @@ namespace Managers
             }
             
             info.AppendLine();
-            
-            // Audio Manager Status
+              // Audio Manager Status
             if (audioManager != null)
             {
                 info.AppendLine("🎤 Audio Manager:");
-                info.AppendLine($"  Listening: {audioManager.IsListening}");
-                info.AppendLine($"  VAD Active: {audioManager.IsVoiceActive}");
-                info.AppendLine($"  Microphone: {audioManager.SelectedMicrophone ?? "None"}");
+                info.AppendLine($"  Recording: {audioManager.IsRecording}");
+                info.AppendLine($"  VAD Active: {audioManager.VoiceDetected}");
+                info.AppendLine($"  Microphone: {audioManager.CurrentMicrophone ?? "None"}");
             }
             else
             {

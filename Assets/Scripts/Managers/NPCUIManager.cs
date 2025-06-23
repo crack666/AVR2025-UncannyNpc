@@ -36,12 +36,11 @@ namespace Managers
         private int currentLineCount = 0;
         
         #region Unity Lifecycle
-        
-        private void Awake()
+          private void Awake()
         {
             // Find NPC controller if not assigned
             if (npcController == null)
-                npcController = FindObjectOfType<NPCController>();
+                npcController = FindFirstObjectByType<NPCController>();
         }
         
         private void Start()

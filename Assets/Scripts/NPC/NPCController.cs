@@ -54,9 +54,9 @@ namespace NPC
         private void Awake()
         {            // Initialize components if not assigned
             if (realtimeClient == null)
-                realtimeClient = FindObjectOfType<RealtimeClient>();
+                realtimeClient = FindFirstObjectByType<RealtimeClient>();
             if (audioManager == null)
-                audioManager = FindObjectOfType<RealtimeAudioManager>();
+                audioManager = FindFirstObjectByType<RealtimeAudioManager>();
             if (npcAnimator == null)
                 npcAnimator = GetComponent<Animator>();
             if (audioSource == null)
@@ -73,11 +73,11 @@ namespace NPC
                 realtimeClient.OnTextReceived.AddListener(OnTextReceived);
                 realtimeClient.OnError.AddListener(OnRealtimeError);
             }
-            
-            if (audioManager != null)
+              if (audioManager != null)
             {
-                audioManager.OnVoiceActivityStarted.AddListener(OnUserStartedSpeaking);
-                audioManager.OnVoiceActivityStopped.AddListener(OnUserStoppedSpeaking);
+                audioManager.OnVoiceDetected.AddListener(OnVoiceDetectionChanged);
+                audioManager.OnRecordingStarted.AddListener(OnUserStartedSpeaking);
+                audioManager.OnRecordingStopped.AddListener(OnUserStoppedSpeaking);
             }
         }
         
@@ -91,11 +91,11 @@ namespace NPC
                 realtimeClient.OnTextReceived.RemoveListener(OnTextReceived);
                 realtimeClient.OnError.RemoveListener(OnRealtimeError);
             }
-            
-            if (audioManager != null)
+              if (audioManager != null)
             {
-                audioManager.OnVoiceActivityStarted.RemoveListener(OnUserStartedSpeaking);
-                audioManager.OnVoiceActivityStopped.RemoveListener(OnUserStoppedSpeaking);
+                audioManager.OnVoiceDetected.RemoveListener(OnVoiceDetectionChanged);
+                audioManager.OnRecordingStarted.RemoveListener(OnUserStartedSpeaking);
+                audioManager.OnRecordingStopped.RemoveListener(OnUserStoppedSpeaking);
             }
         }
         
@@ -131,13 +131,12 @@ namespace NPC
                 SetState(NPCState.Idle);
             }
         }
-        
-        public void StartConversation()
+          public void StartConversation()
         {
             if (IsConnected && currentState == NPCState.Idle)
             {
                 SetState(NPCState.Listening);
-                audioManager?.StartListening();
+                audioManager?.StartRecording();
                 realtimeClient?.StartListening();
             }
         }
@@ -146,7 +145,7 @@ namespace NPC
         {
             if (currentState == NPCState.Listening || currentState == NPCState.Speaking)
             {
-                audioManager?.StopListening();
+                audioManager?.StopRecording();
                 realtimeClient?.StopListening();
                 SetState(NPCState.Idle);
             }
@@ -200,6 +199,18 @@ namespace NPC
         {
             Debug.LogError($"NPC '{npcName}' Realtime API Error: {error}");
             SetState(NPCState.Error);
+        }
+        
+        private void OnVoiceDetectionChanged(bool isDetected)
+        {
+            if (isDetected)
+            {
+                OnUserStartedSpeaking();
+            }
+            else
+            {
+                OnUserStoppedSpeaking();
+            }
         }
         
         private void OnUserStartedSpeaking()

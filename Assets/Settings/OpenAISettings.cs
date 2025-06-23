@@ -21,6 +21,10 @@ public class OpenAISettings : ScriptableObject
     [SerializeField] private string voice = "alloy";
     [SerializeField] private float temperature = 0.8f;
     
+    [Header("Conversation Settings")]
+    [SerializeField] private string systemPrompt = "You are a helpful AI assistant.";
+    [SerializeField] private string voiceModel = "gpt-4o-realtime-preview-2024-12-17";
+    
     [Header("Debug Settings")]
     [SerializeField] private bool enableDebugLogging = true;
     [SerializeField] private bool logAudioData = false;
@@ -34,6 +38,8 @@ public class OpenAISettings : ScriptableObject
     public float MicrophoneVolume => microphoneVolume;
     public string Voice => voice;
     public float Temperature => temperature;
+    public string SystemPrompt => systemPrompt;
+    public string VoiceModel => voiceModel;
     public bool EnableDebugLogging => enableDebugLogging;
     public bool LogAudioData => logAudioData;
     
