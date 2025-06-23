@@ -72,12 +72,13 @@ namespace NPC
                 realtimeClient.OnAudioReceived.AddListener(OnAudioReceived);
                 realtimeClient.OnTextReceived.AddListener(OnTextReceived);
                 realtimeClient.OnError.AddListener(OnRealtimeError);
-            }
-              if (audioManager != null)
+            }            if (audioManager != null)
             {
                 audioManager.OnVoiceDetected.AddListener(OnVoiceDetectionChanged);
                 audioManager.OnRecordingStarted.AddListener(OnUserStartedSpeaking);
                 audioManager.OnRecordingStopped.AddListener(OnUserStoppedSpeaking);
+                audioManager.OnAudioPlaybackStarted.AddListener(OnAudioPlaybackStarted);
+                audioManager.OnAudioPlaybackFinished.AddListener(OnAudioPlaybackFinished);
             }
         }
         
@@ -90,12 +91,13 @@ namespace NPC
                 realtimeClient.OnAudioReceived.RemoveListener(OnAudioReceived);
                 realtimeClient.OnTextReceived.RemoveListener(OnTextReceived);
                 realtimeClient.OnError.RemoveListener(OnRealtimeError);
-            }
-              if (audioManager != null)
+            }            if (audioManager != null)
             {
                 audioManager.OnVoiceDetected.RemoveListener(OnVoiceDetectionChanged);
                 audioManager.OnRecordingStarted.RemoveListener(OnUserStartedSpeaking);
                 audioManager.OnRecordingStopped.RemoveListener(OnUserStoppedSpeaking);
+                audioManager.OnAudioPlaybackStarted.RemoveListener(OnAudioPlaybackStarted);
+                audioManager.OnAudioPlaybackFinished.RemoveListener(OnAudioPlaybackFinished);
             }
         }
         
@@ -174,15 +176,13 @@ namespace NPC
         {
             Debug.Log($"NPC '{npcName}' disconnected from OpenAI Realtime API");
             SetState(NPCState.Idle);
-        }
-        
-        private void OnAudioReceived(AudioChunk audioChunk)
+        }        private void OnAudioReceived(AudioChunk audioChunk)
         {
             if (audioChunk != null && audioChunk.data != null)
             {
-                // Convert audio chunk to AudioClip and play
-                var audioClip = audioChunk.ToAudioClip($"NPCResponse_{Time.time}");
-                PlayNPCResponse(audioClip);
+                // Audio playback is now handled by RealtimeAudioManager queue system
+                // State management is handled by OnAudioPlaybackStarted/Finished events
+                Debug.Log($"NPC '{npcName}' received audio chunk, queued for playback");
             }
         }
         
@@ -233,60 +233,56 @@ namespace NPC
             }
         }
         
+        private void OnAudioPlaybackStarted()
+        {
+            // Audio playback is starting - NPC should be in speaking state
+            SetState(NPCState.Speaking);
+            Debug.Log($"NPC '{npcName}' started speaking (audio playback started)");
+        }
+        
+        private void OnAudioPlaybackFinished()
+        {
+            // Audio playback finished - reset accumulated text and return to idle
+            OnNPCFinishedSpeaking?.Invoke();
+            accumulatedText = ""; // Reset for next response
+            SetState(NPCState.Idle);
+            Debug.Log($"NPC '{npcName}' finished speaking (audio playback finished)");
+        }
+        
         #endregion
         
-        #region Audio & Animation
-        
-        private void PlayNPCResponse(AudioClip clip)
-        {
-            if (clip != null && audioSource != null)
-            {
-                SetState(NPCState.Speaking);
-                currentResponseClip = clip;
-                audioSource.clip = clip;
-                audioSource.Play();
-                
-                OnNPCStartedSpeaking?.Invoke(accumulatedText);
-                accumulatedText = ""; // Reset for next response
-                
-                // Schedule end of speaking
-                Invoke(nameof(OnResponseFinished), clip.length);
-            }
-        }
-        
-        private void OnResponseFinished()
-        {
-            OnNPCFinishedSpeaking?.Invoke();
-            
-            if (currentState == NPCState.Speaking)
-            {
-                SetState(NPCState.Listening);
-            }
-        }
-        
+        #region Audio & Animation        
         private void UpdateLipSync()
         {
-            if (!enableLipSync || npcAnimator == null || !audioSource.isPlaying)
+            if (!enableLipSync || npcAnimator == null)
                 return;
             
+            // Get audio data from RealtimeAudioManager's playback source
+            var audioManager = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeAudioManager>();
+            if (audioManager == null || !audioManager.IsPlayingAudio())
+                return;
+            
+            // Note: We need to access the playback audio source from RealtimeAudioManager
+            // For now, disable lip sync until we can properly integrate with the audio manager
+            // TODO: Add GetPlaybackAudioSource() method to RealtimeAudioManager for lip sync
+            
+            /*
             // Simple amplitude-based lip sync
-            if (currentResponseClip != null)
+            audioSamples = new float[SAMPLE_WINDOW];
+            playbackAudioSource.GetOutputData(audioSamples, 0);
+            
+            float sum = 0f;
+            for (int i = 0; i < SAMPLE_WINDOW; i++)
             {
-                audioSamples = new float[SAMPLE_WINDOW];
-                audioSource.GetOutputData(audioSamples, 0);
-                
-                float sum = 0f;
-                for (int i = 0; i < SAMPLE_WINDOW; i++)
-                {
-                    sum += Mathf.Abs(audioSamples[i]);
-                }
-                
-                float amplitude = sum / SAMPLE_WINDOW;
-                float lipSyncValue = lipSyncCurve.Evaluate(amplitude * lipSyncSensitivity);
-                
-                // Apply to animator (assuming you have a "LipSync" float parameter)
-                npcAnimator.SetFloat("LipSync", lipSyncValue);
+                sum += Mathf.Abs(audioSamples[i]);
             }
+            
+            float amplitude = sum / SAMPLE_WINDOW;
+            float lipSyncValue = lipSyncCurve.Evaluate(amplitude * lipSyncSensitivity);
+            
+            // Apply to animator (assuming you have a "LipSync" float parameter)
+            npcAnimator.SetFloat("LipSync", lipSyncValue);
+            */
         }
         
         private void UpdateAnimationState()

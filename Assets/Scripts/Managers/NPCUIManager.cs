@@ -375,6 +375,39 @@ namespace Managers
             }
         }
         
+        [ContextMenu("Stop All Audio Playback")]
+        private void TestStopAllAudio()
+        {
+            if (npcController != null)
+            {
+                // Try to find the audio manager through the NPC controller
+                var audioManager = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeAudioManager>();
+                if (audioManager != null)
+                {
+                    audioManager.StopAllAudioPlayback();
+                    UpdateStatus("Stopped all audio playback", systemMessageColor);
+                }
+                else
+                {
+                    Debug.LogWarning("Could not find RealtimeAudioManager to stop audio");
+                }
+            }
+        }
+        
+        [ContextMenu("Show Audio Queue Status")]
+        private void TestShowAudioQueueStatus()
+        {
+            var audioManager = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeAudioManager>();
+            if (audioManager != null)
+            {
+                int queueCount = audioManager.GetAudioQueueCount();
+                bool isPlaying = audioManager.IsPlayingAudio();
+                string status = $"Audio Queue: {queueCount} clips, Playing: {isPlaying}";
+                UpdateStatus(status, systemMessageColor);
+                Debug.Log($"[DEBUG] {status}");
+            }
+        }
+        
         #endregion
     }
 }

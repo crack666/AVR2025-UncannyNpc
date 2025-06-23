@@ -61,6 +61,10 @@ namespace OpenAI.RealtimeAPI
         private float[] processingBuffer;
         private int chunkSampleCount;
         private Coroutine recordingCoroutine;
+          // Audio Playback Queue
+        private Queue<AudioClip> audioPlaybackQueue = new Queue<AudioClip>();
+        private bool isPlayingAudio = false;
+        private Coroutine playbackCoroutine = null;
         
         // Properties
         public bool IsRecording => isRecording;
@@ -480,9 +484,7 @@ namespace OpenAI.RealtimeAPI
         
         #endregion
         
-        #region Audio Playback
-        
-        /// <summary>
+        #region Audio Playback        /// <summary>
         /// Spielt empfangenen Audio-Clip ab
         /// </summary>
         public void PlayReceivedAudio(AudioClip audioClip)
@@ -491,18 +493,30 @@ namespace OpenAI.RealtimeAPI
             
             try
             {
-                playbackAudioSource.clip = audioClip;
-                playbackAudioSource.Play();
+                // Thread-safe enqueue
+                lock (audioPlaybackQueue)
+                {
+                    audioPlaybackQueue.Enqueue(audioClip);
+                    Log($"[QUEUE] Enqueued audio clip: {audioClip.length:F2}s (Queue size: {audioPlaybackQueue.Count}, isPlaying: {isPlayingAudio})");
+                }
                 
-                OnAudioPlaybackStarted?.Invoke();
-                Log($"Playing received audio: {audioClip.length:F2}s");
-                
-                // Starte Coroutine um Playback-Ende zu erkennen
-                StartCoroutine(WaitForPlaybackEnd(audioClip.length));
+                // Starte Playback Coroutine falls nicht bereits aktiv
+                if (!isPlayingAudio && playbackCoroutine == null)
+                {
+                    Log("[QUEUE] Starting new playback queue coroutine");
+                    isPlayingAudio = true; // Set flag immediately to prevent race condition
+                    playbackCoroutine = StartCoroutine(PlaybackQueueCoroutine());
+                }
+                else
+                {
+                    Log("[QUEUE] Audio already playing, added to queue");
+                }
             }
             catch (Exception e)
             {
                 LogError($"Failed to play audio: {e.Message}");
+                isPlayingAudio = false; // Reset flag on error
+                playbackCoroutine = null;
             }
         }
         
@@ -523,13 +537,62 @@ namespace OpenAI.RealtimeAPI
             {
                 LogError($"Error playing received audio chunk: {ex.Message}");
             }
-        }
-        
-        private IEnumerator WaitForPlaybackEnd(float duration)
+        }        private IEnumerator PlaybackQueueCoroutine()
         {
-            yield return new WaitForSeconds(duration);
+            Log($"[QUEUE] Started audio queue processing");
+            
+            while (true)
+            {
+                AudioClip clip = null;
+                
+                // Thread-safe dequeue
+                lock (audioPlaybackQueue)
+                {
+                    if (audioPlaybackQueue.Count == 0)
+                    {
+                        break; // Exit if no more clips
+                    }
+                    clip = audioPlaybackQueue.Dequeue();
+                }
+                
+                if (clip == null) break;
+                
+                Log($"[QUEUE] Dequeued audio clip: {clip.length:F2}s (Remaining: {audioPlaybackQueue.Count})");
+                
+                // Stop any currently playing audio
+                if (playbackAudioSource.isPlaying)
+                {
+                    playbackAudioSource.Stop();
+                    Log("[QUEUE] Stopped previous audio to play new clip");
+                }
+                
+                playbackAudioSource.clip = clip;
+                playbackAudioSource.Play();
+                
+                OnAudioPlaybackStarted?.Invoke();
+                Log($"[QUEUE] Now playing audio: {clip.length:F2}s");
+                
+                // Wait for the clip to finish playing
+                float clipLength = clip.length;
+                float playTime = 0f;
+                
+                while (playTime < clipLength && playbackAudioSource.isPlaying)
+                {
+                    yield return new WaitForSeconds(0.1f);
+                    playTime += 0.1f;
+                }
+                
+                Log($"[QUEUE] Audio clip finished playing (played for {playTime:F2}s)");
+                
+                // Small gap between clips to ensure clean playback
+                yield return new WaitForSeconds(0.05f);
+            }
+            
+            // Reset state when done
+            isPlayingAudio = false;
+            playbackCoroutine = null;
             OnAudioPlaybackFinished?.Invoke();
-            Log("Audio playback finished");
+            Log("[QUEUE] Audio queue processing completed - all clips played");
         }
         
         #endregion
@@ -577,9 +640,68 @@ namespace OpenAI.RealtimeAPI
             
             return sum / audioLevelHistory.Count;
         }
+          /// <summary>
+        /// Stoppt alle Audio-Wiedergabe und leert die Warteschlange
+        /// </summary>
+        public void StopAllAudioPlayback()
+        {
+            Log("[QUEUE] Stopping all audio playback and clearing queue");
+            
+            // Stop current playback
+            if (playbackAudioSource != null && playbackAudioSource.isPlaying)
+            {
+                playbackAudioSource.Stop();
+            }
+            
+            // Stop coroutine if running
+            if (playbackCoroutine != null)
+            {
+                StopCoroutine(playbackCoroutine);
+                playbackCoroutine = null;
+            }
+            
+            // Clear queue
+            lock (audioPlaybackQueue)
+            {
+                int clearedCount = audioPlaybackQueue.Count;
+                audioPlaybackQueue.Clear();
+                Log($"[QUEUE] Cleared {clearedCount} audio clips from queue");
+            }
+            
+            // Reset state
+            isPlayingAudio = false;
+            
+            OnAudioPlaybackFinished?.Invoke();
+        }
         
+        /// <summary>
+        /// Gibt die aktuelle Anzahl der Audio-Clips in der Warteschlange zurück
+        /// </summary>
+        public int GetAudioQueueCount()
+        {
+            lock (audioPlaybackQueue)
+            {
+                return audioPlaybackQueue.Count;
+            }
+        }
+        
+        /// <summary>
+        /// Gibt zurück, ob gerade Audio abgespielt wird
+        /// </summary>
+        public bool IsPlayingAudio()
+        {
+            return isPlayingAudio && playbackAudioSource != null && playbackAudioSource.isPlaying;
+        }
+
+        /// <summary>
+        /// Gibt die aktuelle AudioSource für Playback zurück (für Lip Sync)
+        /// </summary>
+        public AudioSource GetPlaybackAudioSource()
+        {
+            return playbackAudioSource;
+        }
+
         #endregion
-        
         #region Logging
         
         private void Log(string message)
