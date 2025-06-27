@@ -18,10 +18,14 @@ MonoBehaviour:
   sampleRate: 24000
   audioChunkSizeMs: 100
   microphoneVolume: 1
-  voice: alloy
+  voice: shimmer
   temperature: 0.7
-  systemPrompt: You are a helpful AI assistant. You are speaking to someone in a
-    virtual world. Keep your responses conversational and engaging.
-  voiceModel: alloy
+  systemPrompt: "Du bist ein hilfsbereiter KI-Assistent in einer virtuellen Welt.
+    Sprich locker und freundlich, als w\xFCrdest du dich mit einer echten Person
+    unterhalten. Achte auf eine nat\xFCrliche, angenehme und sympathische Stimme.
+    Verwende eine allt\xE4gliche Sprache, baue gerne kurze Pausen ein, um das Gespr\xE4ch
+    lebendig wirken zu lassen, und gehe auf dein Gegen\xFCber ein. Halte deine Antworten
+    kurz, klar und pers\xF6nlich."
+  voiceModel: shimmer
   enableDebugLogging: 1
   logAudioData: 0
