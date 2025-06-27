@@ -397,7 +397,7 @@ namespace OpenAI.RealtimeAPI
                 {
                     modalities = new[] { "text", "audio" },
                     instructions = settings?.SystemPrompt ?? "You are a helpful AI assistant.",
-                    voice = settings?.VoiceModel ?? "alloy",
+                    voice = settings != null ? settings.Voice.ToString() : "alloy",
                     input_audio_format = "pcm16",
                     output_audio_format = "pcm16",
                     input_audio_transcription = new

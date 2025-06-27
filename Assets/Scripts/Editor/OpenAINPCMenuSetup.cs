@@ -19,6 +19,13 @@ public class OpenAINPCMenuSetup : EditorWindow
 
     public static void RunFullSetup()
     {
+        // --- Sicherstellen, dass ein EventSystem existiert ---
+        if (GameObject.FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null)
+        {
+            var es = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem), typeof(UnityEngine.EventSystems.StandaloneInputModule));
+            Undo.RegisterCreatedObjectUndo(es, "Create EventSystem");
+        }
+
         // 1. Settings Asset erstellen oder laden (nur OpenAISettings)
         var openAISettingsType = System.AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).FirstOrDefault(t => t.Name == "OpenAISettings");
         ScriptableObject settings = null;
@@ -255,12 +262,13 @@ public class OpenAINPCMenuSetup : EditorWindow
         statusRect.anchorMax = new Vector2(1f, 1f);
         statusRect.pivot = new Vector2(0.5f, 1f);
         statusRect.sizeDelta = new Vector2(-40, 30);
-        statusRect.anchoredPosition = new Vector2(0, -10);
+        statusRect.anchoredPosition = new Vector2(0, -150);
         var statusText = statusGO.AddComponent<TMPro.TextMeshProUGUI>();
         statusText.text = "Status: Ready";
         statusText.fontSize = 16;
         statusText.alignment = TMPro.TextAlignmentOptions.Left;
         statusText.color = Color.yellow;
+        statusText.raycastTarget = false; // <-- Blockiert keine Klicks mehr!
 
         // 7. Volume Slider
         var volumeSliderGO = new GameObject("VolumeSlider", typeof(RectTransform));
@@ -300,6 +308,13 @@ public class OpenAINPCMenuSetup : EditorWindow
             SetField(uiManager, "statusDisplay", statusText);
             SetField(uiManager, "volumeSlider", volumeSlider);
             SetField(uiManager, "enableVADToggle", vadToggle);
+
+            // Button-Events explizit binden
+            BindButtonEvent(connectBtn, uiManager, "OnConnectClicked");
+            BindButtonEvent(disconnectBtn, uiManager, "OnDisconnectClicked");
+            BindButtonEvent(startConvBtn, uiManager, "OnStartConversationClicked");
+            BindButtonEvent(stopConvBtn, uiManager, "OnStopConversationClicked");
+            BindButtonEvent(sendBtn, uiManager, "OnSendMessageClicked");
         }
 
         // --- Hinweis und Direkt-Link zu den Settings ---
@@ -353,5 +368,18 @@ public class OpenAINPCMenuSetup : EditorWindow
             AssetDatabase.SaveAssets();
         }
         return asset;
+    }
+
+    // Hilfsmethode für Button-Event-Bindung
+    static void BindButtonEvent(Button button, Component target, string methodName)
+    {
+        if (button == null || target == null) return;
+        var method = target.GetType().GetMethod(methodName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+        if (method != null)
+        {
+            UnityEngine.Events.UnityAction action = System.Delegate.CreateDelegate(typeof(UnityEngine.Events.UnityAction), target, method) as UnityEngine.Events.UnityAction;
+            if (action != null)
+                button.onClick.AddListener(action);
+        }
     }
 }
