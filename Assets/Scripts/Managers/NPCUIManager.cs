@@ -22,6 +22,7 @@ namespace Managers
         [SerializeField] private TMP_Text statusDisplay;
         [SerializeField] private Slider volumeSlider;
         [SerializeField] private Toggle enableVADToggle;
+        [SerializeField] private TMPro.TMP_Dropdown voiceDropdown;
         
         [Header("NPC Reference")]
         [SerializeField] private NPCController npcController;
@@ -37,6 +38,8 @@ namespace Managers
         // UI state tracking to prevent spam
         private bool lastConnectedState = false;
         private NPCState lastNPCState = NPCState.Idle;
+        
+        [SerializeField] private OpenAIVoice voice = OpenAIVoice.alloy;
         
         #region Unity Lifecycle
           private void Awake()
@@ -97,6 +100,16 @@ namespace Managers
             if (conversationDisplay != null)
             {
                 conversationDisplay.text = "OpenAI Realtime NPC Chat\n\nClick 'Connect' to begin...";
+            }
+            
+            // Stimmen-Dropdown initialisieren
+            if (voiceDropdown != null)
+            {
+                voiceDropdown.ClearOptions();
+                var enumNames = System.Enum.GetNames(typeof(OpenAIVoice));
+                voiceDropdown.AddOptions(new System.Collections.Generic.List<string>(enumNames));
+                voiceDropdown.value = (int)voice;
+                voiceDropdown.onValueChanged.AddListener(OnVoiceDropdownChanged);
             }
         }
         
@@ -209,6 +222,22 @@ namespace Managers
                     messageInputField.text = "";
                     messageInputField.ActivateInputField();
                 }
+            }
+        }
+        
+        private void OnVoiceDropdownChanged(int index)
+        {
+            var newVoice = (OpenAIVoice)index;
+            if (voice != newVoice)
+            {
+                voice = newVoice;
+                // RealtimeClient-Instanz finden und SessionUpdate senden
+                var client = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeClient>();
+                if (client != null && client.IsConnected)
+                {
+                    _ = client.SendSessionUpdateAsync();
+                }
+                UpdateStatus($"Voice changed to: {voice}", systemMessageColor);
             }
         }
         
