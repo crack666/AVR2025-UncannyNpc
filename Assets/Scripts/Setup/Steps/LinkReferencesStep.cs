@@ -7,7 +7,7 @@ namespace Setup.Steps
     {
         private System.Action<string> log;
         public LinkReferencesStep(System.Action<string> log) { this.log = log; }
-        public IEnumerator Execute(GameObject npcSystem, GameObject uiPanel, GameObject targetAvatar)
+        public IEnumerator Execute(GameObject npcSystem, GameObject uiPanel, GameObject targetAvatar, ScriptableObject openAISettings)
         {
             log("🔗 Step 6: Linking All Component References");
             if (npcSystem == null || uiPanel == null)
@@ -39,6 +39,20 @@ namespace Setup.Steps
             {
                 // audioManager.realtimeClient = realtimeClient;
                 log("✅ Audio Manager references linked");
+            }
+            // Link OpenAISettings to RealtimeClient
+            if (realtimeClient != null && openAISettings != null)
+            {
+                var field = realtimeClient.GetType().GetField("settings", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                if (field != null)
+                {
+                    field.SetValue(realtimeClient, openAISettings);
+                    log("✅ OpenAISettings reference set on RealtimeClient");
+                }
+                else
+                {
+                    log("❌ Could not set OpenAISettings on RealtimeClient (field not found)");
+                }
             }
             log("✅ All component references linked successfully");
             yield return null;

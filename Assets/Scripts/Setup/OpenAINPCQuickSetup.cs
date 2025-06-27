@@ -94,7 +94,7 @@ namespace Setup
 
             // Step 6: References Linking (ausgelagert)
             var linkStep = new LinkReferencesStep(Log);
-            yield return StartCoroutine(linkStep.Execute(npcSystem, uiStep.Panel, targetAvatar));
+            yield return StartCoroutine(linkStep.Execute(npcSystem, uiStep.Panel, targetAvatar, openAISettings));
             progress.allReferencesLinked = true;
 
             yield return StartCoroutine(Step7_FinalValidation());

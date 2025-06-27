@@ -29,7 +29,7 @@ namespace NPC
         [SerializeField] private string idleAnimationTrigger = "GoIdle";
         
         [Header("Events")]
-        public UnityEvent<string> OnNPCStartedSpeaking;
+        public UnityEvent OnNPCStartedSpeaking;
         public UnityEvent OnNPCFinishedSpeaking;
         public UnityEvent OnNPCStartedListening;
         public UnityEvent OnNPCFinishedListening;

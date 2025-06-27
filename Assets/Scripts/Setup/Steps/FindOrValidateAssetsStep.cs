@@ -65,7 +65,8 @@ namespace Setup.Steps
 
         private GameObject FindReadyPlayerMeAvatar()
         {
-            SkinnedMeshRenderer[] renderers = Object.FindObjectsOfType<SkinnedMeshRenderer>();
+            // Unity 2022+: FindObjectsOfType ist veraltet, nutze FindObjectsByType
+            SkinnedMeshRenderer[] renderers = Object.FindObjectsByType<SkinnedMeshRenderer>(FindObjectsSortMode.None);
             foreach (var renderer in renderers)
             {
                 if (renderer.name.Contains("Wolf3D") || renderer.name.ToLower().Contains("head") || (renderer.sharedMesh != null && renderer.sharedMesh.blendShapeCount > 10))
