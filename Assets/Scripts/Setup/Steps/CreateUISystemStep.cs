@@ -16,8 +16,17 @@ namespace Setup.Steps
         public void Execute(Vector2 panelSize, Vector2 panelPosition)
         {
             // Canvas
-            GameObject canvasGO = GameObject.Find("Canvas") ?? new GameObject("Canvas");
-            Canvas = canvasGO.GetComponent<Canvas>() ?? canvasGO.AddComponent<Canvas>();
+            GameObject canvasGO = GameObject.Find("Canvas");
+            if (canvasGO == null)
+            {
+                canvasGO = new GameObject("Canvas");
+                Canvas = canvasGO.AddComponent<Canvas>();
+            }
+            else
+            {
+                Canvas = canvasGO.GetComponent<Canvas>();
+                if (Canvas == null) Canvas = canvasGO.AddComponent<Canvas>();
+            }
             if (canvasGO.GetComponent<CanvasScaler>() == null) canvasGO.AddComponent<CanvasScaler>();
             if (canvasGO.GetComponent<GraphicRaycaster>() == null) canvasGO.AddComponent<GraphicRaycaster>();
             Canvas.renderMode = RenderMode.ScreenSpaceOverlay;

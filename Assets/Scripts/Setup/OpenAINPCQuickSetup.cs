@@ -187,25 +187,6 @@ namespace Setup
             yield return null;
         }
         
-        private IEnumerator Step3_ConfigureAudioSystem()
-        {
-            // Diese Methode ist jetzt ausgelagert und kann entfernt werden.
-            yield break;
-        }
-        private IEnumerator Step4_SetupLipSyncSystem()
-        {
-            // Diese Methode ist jetzt ausgelagert und kann entfernt werden.
-            yield break;
-        }
-        private void ConfigureAudioManager(MonoBehaviour audioManager, AudioSource playbackAudio)
-        {
-            // Diese Methode ist jetzt ausgelagert und kann entfernt werden.
-        }
-        private void ConfigureLipSync(MonoBehaviour lipSync)
-        {
-            // Diese Methode ist jetzt ausgelagert und kann entfernt werden.
-        }
-        
         private IEnumerator Step7_FinalValidation()
         {
             Log("🔍 Step 7: Final System Validation");

@@ -49,7 +49,7 @@ public class OpenAINPCQuickSetup : EditorWindow
                  "- RealtimeClient\n" +
                  "- RealtimeAudioManager\n" +
                  "- NPCController\n" +
-                 "- NPCUIManager\n" +
+                 "- NpcUiManager\n" +
                  "- OpenAINPCDebug\n" +
                  "Then assign OpenAIRealtimeSettings.asset to each script.");
         

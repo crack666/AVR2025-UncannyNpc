@@ -26,7 +26,7 @@ OPENAI NPC SETUP TUTORIAL:
 
 3. CREATE OPENAI SYSTEM:
    - Create Empty GameObject, name it 'OpenAI NPC System'
-   - Add Scripts: RealtimeClient, RealtimeAudioManager, NPCController, NPCUIManager, OpenAINPCDebug
+   - Add Scripts: RealtimeClient, RealtimeAudioManager, NPCController, NpcUiManager, OpenAINPCDebug
    - Link the OpenAIRealtimeSettings asset to each script
 
 4. CREATE UI:

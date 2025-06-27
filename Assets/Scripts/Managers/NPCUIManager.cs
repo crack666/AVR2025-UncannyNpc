@@ -9,7 +9,7 @@ namespace Managers
     /// UI Manager for OpenAI Realtime NPC interaction
     /// Provides controls for testing and conversation management
     /// </summary>
-    public class NPCUIManager : MonoBehaviour
+    public class NpcUiManager : MonoBehaviour
     {
         [Header("UI References")]
         [SerializeField] private Button connectButton;
