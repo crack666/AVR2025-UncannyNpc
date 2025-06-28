@@ -48,10 +48,28 @@ namespace Setup.Steps
                 {
                     field.SetValue(realtimeClient, openAISettings);
                     log("✅ OpenAISettings reference set on RealtimeClient");
+                    Debug.Log("[LinkReferencesStep] ✅ OpenAISettings reference set on RealtimeClient");
                 }
                 else
                 {
                     log("❌ Could not set OpenAISettings on RealtimeClient (field not found)");
+                    Debug.LogWarning("[LinkReferencesStep] ❌ Could not set OpenAISettings on RealtimeClient (field not found)");
+                }
+            }
+            // Link OpenAISettings to RealtimeAudioManager
+            if (audioManager != null && openAISettings != null)
+            {
+                var field = audioManager.GetType().GetField("settings", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                if (field != null)
+                {
+                    field.SetValue(audioManager, openAISettings);
+                    log("✅ OpenAISettings reference set on RealtimeAudioManager");
+                    Debug.Log("[LinkReferencesStep] ✅ OpenAISettings reference set on RealtimeAudioManager");
+                }
+                else
+                {
+                    log("❌ Could not set OpenAISettings on RealtimeAudioManager (field not found)");
+                    Debug.LogWarning("[LinkReferencesStep] ❌ Could not set OpenAISettings on RealtimeAudioManager (field not found)");
                 }
             }
             log("✅ All component references linked successfully");

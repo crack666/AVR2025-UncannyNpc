@@ -8,18 +8,15 @@ namespace Setup.Steps
     /// </summary>
     public class FindOrValidateAssetsStep
     {
-        private ScriptableObject realtimeSettings;
         private ScriptableObject openAISettings;
         private GameObject targetAvatar;
         private System.Action<string> log;
         public bool AvatarFound { get; private set; }
-        public ScriptableObject RealtimeSettings => realtimeSettings;
         public ScriptableObject OpenAISettings => openAISettings;
         public GameObject TargetAvatar => targetAvatar;
 
-        public FindOrValidateAssetsStep(ScriptableObject realtimeSettings, ScriptableObject openAISettings, GameObject targetAvatar, System.Action<string> log)
+        public FindOrValidateAssetsStep(ScriptableObject openAISettings, GameObject targetAvatar, System.Action<string> log)
         {
-            this.realtimeSettings = realtimeSettings;
             this.openAISettings = openAISettings;
             this.targetAvatar = targetAvatar;
             this.log = log;
@@ -28,15 +25,6 @@ namespace Setup.Steps
         public IEnumerator Execute()
         {
             log("📋 Step 1: Asset Discovery and Validation");
-            if (realtimeSettings == null)
-            {
-                realtimeSettings = Resources.Load<ScriptableObject>("OpenAIRealtimeSettings");
-                if (realtimeSettings == null)
-                {
-                    log("⚠️ OpenAIRealtimeSettings not found in Resources folder");
-                    log("   → Create: Assets/Resources/OpenAIRealtimeSettings.asset");
-                }
-            }
             if (openAISettings == null)
             {
                 openAISettings = Resources.Load<ScriptableObject>("OpenAISettings");

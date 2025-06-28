@@ -102,6 +102,58 @@ namespace Setup.Steps
 
             // InputField
             CreateInputField();
+            
+            // --- Assign text fields and input field to NpcUiManager via reflection ---
+            if (uiManagerType != null && Panel != null)
+            {
+                var uiManager = Panel.GetComponent(uiManagerType);
+                if (uiManager != null)
+                {
+                    // Status Display
+                    var statusGO = GameObject.Find("Status Display");
+                    var statusText = statusGO != null ? statusGO.GetComponent<TextMeshProUGUI>() : null;
+                    var statusField = uiManagerType.GetField("statusDisplay", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                    if (statusField != null && statusText != null)
+                    {
+                        statusField.SetValue(uiManager, statusText);
+                        Debug.Log("[UI-Setup] statusDisplay reference set in NpcUiManager.");
+                    }
+                    else if (statusField == null)
+                    {
+                        Debug.LogWarning("[UI-Setup] statusDisplay field not found in NpcUiManager.");
+                    }
+                    // Conversation Display
+                    var convGO = GameObject.Find("Conversation Display");
+                    var convText = convGO != null ? convGO.GetComponent<TextMeshProUGUI>() : null;
+                    var convField = uiManagerType.GetField("conversationDisplay", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                    if (convField != null && convText != null)
+                    {
+                        convField.SetValue(uiManager, convText);
+                        Debug.Log("[UI-Setup] conversationDisplay reference set in NpcUiManager.");
+                    }
+                    else if (convField == null)
+                    {
+                        Debug.LogWarning("[UI-Setup] conversationDisplay field not found in NpcUiManager.");
+                    }
+                    // Message Input Field
+                    var inputGO = GameObject.Find("Message Input Field");
+                    var inputField = inputGO != null ? inputGO.GetComponent<TMPro.TMP_InputField>() : null;
+                    var inputFieldField = uiManagerType.GetField("messageInputField", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                    if (inputFieldField != null && inputField != null)
+                    {
+                        inputFieldField.SetValue(uiManager, inputField);
+                        Debug.Log("[UI-Setup] messageInputField reference set in NpcUiManager.");
+                    }
+                    else if (inputFieldField == null)
+                    {
+                        Debug.LogWarning("[UI-Setup] messageInputField field not found in NpcUiManager.");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning("[UI-Setup] NpcUiManager not found on Panel for text/input field assignment.");
+                }
+            }
             Debug.Log($"[UI-Setup][CreateUISystemStep] CreateVoiceDropdown started");
             CreateVoiceDropdown();
             CreateVolumeSlider();
@@ -264,6 +316,32 @@ namespace Setup.Steps
             rectTransform.anchorMax = new Vector2(0.9f, yMax);
             rectTransform.offsetMin = Vector2.zero;
             rectTransform.offsetMax = Vector2.zero;
+
+            // --- Automatische Referenzzuweisung im NpcUiManager ---
+            var uiManagerType = System.Type.GetType("Managers.NpcUiManager") ?? System.Type.GetType("NpcUiManager");
+            if (uiManagerType != null && Panel != null)
+            {
+                var uiManager = Panel.GetComponent(uiManagerType);
+                if (uiManager != null)
+                {
+                    string fieldName = null;
+                    if (name == "Status Display") fieldName = "statusDisplay";
+                    else if (name == "Conversation Display") fieldName = "conversationDisplay";
+                    if (fieldName != null)
+                    {
+                        var field = uiManagerType.GetField(fieldName, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                        if (field != null)
+                        {
+                            field.SetValue(uiManager, textComponent);
+                            Debug.Log($"[UI-Setup] Text-Referenz '{fieldName}' im NpcUiManager gesetzt.");
+                        }
+                        else
+                        {
+                            Debug.LogWarning($"[UI-Setup] Feld '{fieldName}' im NpcUiManager nicht gefunden.");
+                        }
+                    }
+                }
+            }
         }
 
         private void CreateInputField()
@@ -317,6 +395,26 @@ namespace Setup.Steps
             inputComponent.textViewport = textAreaRect;
             inputComponent.textComponent = textComponent;
             inputComponent.placeholder = placeholderText;
+
+            // --- Automatische Referenzzuweisung im NpcUiManager ---
+            var uiManagerType = System.Type.GetType("Managers.NpcUiManager") ?? System.Type.GetType("NpcUiManager");
+            if (uiManagerType != null && Panel != null)
+            {
+                var uiManager = Panel.GetComponent(uiManagerType);
+                if (uiManager != null)
+                {
+                    var field = uiManagerType.GetField("messageInputField", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                    if (field != null)
+                    {
+                        field.SetValue(uiManager, inputComponent);
+                        Debug.Log($"[UI-Setup] InputField-Referenz 'messageInputField' im NpcUiManager gesetzt.");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[UI-Setup] Feld 'messageInputField' im NpcUiManager nicht gefunden.");
+                    }
+                }
+            }
         }
 
         private void CreateVoiceDropdown()

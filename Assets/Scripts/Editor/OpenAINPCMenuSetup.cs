@@ -1,10 +1,6 @@
 using UnityEngine;
 using UnityEditor;
-using UnityEngine.UI;
-using TMPro;
-using System.IO;
-using System.Linq;
-using Setup.Steps;
+using Setup;
 
 public class OpenAINPCMenuSetup : EditorWindow
 {
@@ -19,109 +15,99 @@ public class OpenAINPCMenuSetup : EditorWindow
 
     public static void RunFullSetup()
     {
-        // --- Sicherstellen, dass ein EventSystem existiert ---
-        if (GameObject.FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null)
+        // Suche Settings und Avatar automatisch
+        var openAISettings = Resources.Load<ScriptableObject>("OpenAISettings");
+        var avatar = FindReadyPlayerMeAvatar();
+        var uiPanelSize = new Vector2(800, 400); // Breiteres Panel als Default
+        var uiPanelPosition = new Vector2(0, 0);
+
+        // Wenn kein Avatar gefunden, dynamisch nach Prefabs suchen
+        if (avatar == null)
         {
-            var es = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem), typeof(UnityEngine.EventSystems.StandaloneInputModule));
-            Undo.RegisterCreatedObjectUndo(es, "Create EventSystem");
+            // 1. Suche nach Prefabs in Avatars-Ordner
+            string[] avatarPrefabPaths = System.IO.Directory.GetFiles(
+                "Assets/Ready Player Me/Avatars", "*.prefab", System.IO.SearchOption.AllDirectories);
+            GameObject prefab = null;
+            if (avatarPrefabPaths.Length == 1)
+            {
+                string assetPath = avatarPrefabPaths[0];
+                prefab = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+            }
+            else if (avatarPrefabPaths.Length > 1)
+            {
+                // Mehrere Prefabs gefunden: Auswahl-Dialog
+                string[] prefabNames = new string[avatarPrefabPaths.Length];
+                for (int i = 0; i < avatarPrefabPaths.Length; i++)
+                    prefabNames[i] = System.IO.Path.GetFileNameWithoutExtension(avatarPrefabPaths[i]);
+                int selected = EditorUtility.DisplayDialogComplex(
+                    "Avatar Prefab Auswahl",
+                    "Es wurden mehrere Avatar-Prefabs gefunden. Bitte wähle eines aus:",
+                    prefabNames[0],
+                    prefabNames.Length > 1 ? prefabNames[1] : "Abbrechen",
+                    "Abbrechen");
+                if (selected >= 0 && selected < prefabNames.Length)
+                    prefab = AssetDatabase.LoadAssetAtPath<GameObject>(avatarPrefabPaths[selected]);
+            }
+            // 2. Fallback: PreviewAvatar.prefab
+            if (prefab == null)
+            {
+                prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                    "Assets/Ready Player Me/Core/Samples/QuickStart/PreviewAvatar/PreviewAvatar.prefab");
+            }
+            // 3. Wenn gefunden, instanziieren
+            if (prefab != null)
+            {
+                avatar = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                avatar.name = "DefaultAvatar";
+                Undo.RegisterCreatedObjectUndo(avatar, "Create Default Avatar");
+                Debug.Log($"[OpenAI NPC Setup] Kein Avatar gefunden, Default-Prefab instanziiert: {prefab.name}");
+            }
+            else
+            {
+                EditorUtility.DisplayDialog(
+                    "Kein Avatar gefunden",
+                    "Es wurde kein ReadyPlayerMe Avatar gefunden und kein Default-Prefab konnte geladen werden. Bitte installiere einen Avatar manuell oder starte den Avatar Loader.",
+                    "OK");
+                // Setup trotzdem fortsetzen, aber Warnung ausgeben
+            }
         }
 
-        // 1. Settings Asset erstellen oder laden (nur OpenAISettings)
-        var openAISettingsType = System.AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).FirstOrDefault(t => t.Name == "OpenAISettings");
-        ScriptableObject settings = null;
-        if (openAISettingsType != null)
-            settings = EnsureSettingsAsset(openAISettingsType, "OpenAISettings", "Assets/Resources/OpenAISettings.asset");
+        // Setup synchron ausführen
+        bool allValid = false;
+        OpenAINPCSetupUtility.ExecuteFullSetup(
+            openAISettings,
+            avatar,
+            uiPanelSize,
+            uiPanelPosition,
+            msg => Debug.Log($"[OpenAI NPC Setup] {msg}"),
+            valid => allValid = valid
+        );
 
-        // 2. OpenAI NPC System GameObject erstellen
-        var npcSystem = GameObject.Find("OpenAI NPC System") ?? new GameObject("OpenAI NPC System");
-        Undo.RegisterCreatedObjectUndo(npcSystem, "Create OpenAI NPC System");
+        if (allValid)
+            EditorUtility.DisplayDialog("OpenAI NPC Setup", "Setup erfolgreich abgeschlossen!", "OK");
+        else
+            EditorUtility.DisplayDialog("OpenAI NPC Setup", "Setup abgeschlossen, aber mit Warnungen. Siehe Konsole.", "OK");
 
-        // 3. Komponenten hinzufügen
-        var realtimeClient = AddOrGetComponent(npcSystem, "OpenAI.RealtimeAPI.RealtimeClient");
-        var audioManager = AddOrGetComponent(npcSystem, "OpenAI.RealtimeAPI.RealtimeAudioManager");
-        var npcController = AddOrGetComponent(npcSystem, "NPCController");
-        var playbackAudio = AddOrGetComponent(npcSystem, "AudioSource");
-        SetField(npcController, "realtimeClient", realtimeClient);
-        SetField(npcController, "audioManager", audioManager);
-
-        // 6. ReadyPlayerMe Avatar suchen und LipSync-Komponente hinzufügen
-        var avatar = Object.FindObjectsByType<SkinnedMeshRenderer>(FindObjectsSortMode.None).FirstOrDefault(r => r.name.Contains("Wolf3D") || r.name.ToLower().Contains("head"));
-        if (avatar != null)
-        {
-            var avatarGO = avatar.transform.root.gameObject;
-            var lipSync = AddOrGetComponent(avatarGO, "Animation.ReadyPlayerMeLipSync");
-            SetField(lipSync, "headMeshRenderer", avatar);
-            SetField(lipSync, "audioSource", playbackAudio);
-            SetField(npcController, "lipSyncController", lipSync);
-        }
-
-        // 7. UI Canvas + Panel + Buttons erstellen (NEU: Steps-Logik)
-        var uiStep = new Setup.Steps.CreateUISystemStep();
-        uiStep.Execute(new Vector2(600, 300), new Vector2(0, 40));
-
-        // --- Hinweis und Direkt-Link zu den Settings ---
-        string msg = "Setup abgeschlossen!\n\n" +
-            "Bitte prüfe und trage deinen OpenAI API Key ein:\n" +
-            $"- OpenAISettings: {AssetDatabase.GetAssetPath(settings)}\n\n" +
-            "Du kannst das Settings-Asset jetzt direkt im Inspector öffnen.";
-
-        if (EditorUtility.DisplayDialog("OpenAI NPC Setup", msg, "OpenAISettings anzeigen", "Fertig"))
-        {
-            Selection.activeObject = settings;
-        }
+        Debug.Log("[OpenAI NPC Setup] Quick Setup abgeschlossen. Siehe Konsole für Details.");
     }
 
-    static Component AddOrGetComponent(GameObject go, string typeName)
+    private static GameObject FindReadyPlayerMeAvatar()
     {
-        var type = System.AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).FirstOrDefault(t => t.FullName == typeName || t.Name == typeName);
-        if (type == null) return null;
-        var comp = go.GetComponent(type) ?? go.AddComponent(type);
-        return comp;
-    }
-
-    static void SetField(Component comp, string field, object value)
-    {
-        if (comp == null) return;
-        var f = comp.GetType().GetField(field, System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
-        if (f != null) f.SetValue(comp, value);
-    }
-
-    static T EnsureSettingsAsset<T>(string assetName, string path) where T : ScriptableObject
-    {
-        var asset = Resources.Load<T>(assetName);
-        if (asset == null)
+        var renderers = Object.FindObjectsByType<SkinnedMeshRenderer>(FindObjectsSortMode.None);
+        foreach (var renderer in renderers)
         {
-            asset = ScriptableObject.CreateInstance<T>();
-            Directory.CreateDirectory(Path.GetDirectoryName(path));
-            AssetDatabase.CreateAsset(asset, path);
-            AssetDatabase.SaveAssets();
+            if (renderer.name.Contains("Wolf3D") ||
+                renderer.name.ToLower().Contains("head") ||
+                (renderer.sharedMesh != null && renderer.sharedMesh.blendShapeCount > 10))
+            {
+                Transform current = renderer.transform;
+                while (current.parent != null && !current.name.ToLower().Contains("avatar") && !current.name.ToLower().Contains("readyplayerme"))
+                {
+                    current = current.parent;
+                }
+                return current.gameObject;
+            }
         }
-        return asset;
-    }
-
-    static ScriptableObject EnsureSettingsAsset(System.Type type, string assetName, string path)
-    {
-        var asset = Resources.Load(assetName, type) as ScriptableObject;
-        if (asset == null)
-        {
-            asset = ScriptableObject.CreateInstance(type);
-            Directory.CreateDirectory(Path.GetDirectoryName(path));
-            AssetDatabase.CreateAsset(asset, path);
-            AssetDatabase.SaveAssets();
-        }
-        return asset;
-    }
-
-    // Hilfsmethode für Button-Event-Bindung
-    static void BindButtonEvent(Button button, Component target, string methodName)
-    {
-        if (button == null || target == null) return;
-        var method = target.GetType().GetMethod(methodName, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
-        if (method != null)
-        {
-            UnityEngine.Events.UnityAction action = System.Delegate.CreateDelegate(typeof(UnityEngine.Events.UnityAction), target, method) as UnityEngine.Events.UnityAction;
-            if (action != null)
-                button.onClick.AddListener(action);
-        }
+        return null;
     }
 }
