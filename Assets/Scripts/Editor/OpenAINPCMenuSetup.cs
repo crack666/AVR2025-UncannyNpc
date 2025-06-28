@@ -7,72 +7,129 @@ public class OpenAINPCMenuSetup : EditorWindow
     [MenuItem("OpenAI NPC/Quick Setup", false, 0)]
     public static void ShowWindow()
     {
-        if (EditorUtility.DisplayDialog("OpenAI NPC Quick Setup", "Dies wird die komplette OpenAI NPC Infrastruktur automatisch in der aktuellen Szene erstellen. Fortfahren?", "Ja", "Abbrechen"))
+        OpenAINPCMenuSetup window = GetWindow<OpenAINPCMenuSetup>(true, "OpenAI NPC Quick Setup");
+        window.position = new Rect(Screen.width / 2, Screen.height / 2, 400, 180);
+        window.InitAndCheckAvatar();
+        window.Show();
+    }
+
+    private GameObject selectedAvatarPrefab;
+    private bool showObjectPicker = false;
+    private bool setupStarted = false;
+    private string pickerControlName = "AvatarPrefabPicker";
+    private GameObject foundAvatarInstance;
+
+    private enum CanvasMode { ScreenSpaceOverlay, ScreenSpaceCamera, WorldSpace }
+    private CanvasMode selectedCanvasMode = CanvasMode.ScreenSpaceOverlay;
+    private Camera selectedCamera = null;
+    private float worldCanvasScale = 0.01f;
+    private string openAIApiKey = "";
+    private ScriptableObject openAISettingsAsset;
+
+    private void InitAndCheckAvatar()
+    {
+        foundAvatarInstance = FindReadyPlayerMeAvatar();
+        openAISettingsAsset = Resources.Load<ScriptableObject>("OpenAISettings");
+        if (foundAvatarInstance == null)
         {
-            RunFullSetup();
+            showObjectPicker = true;
+            Debug.Log("[OpenAI NPC Setup] Kein Avatar in Szene gefunden. ObjectPicker wird angezeigt.");
+        }
+        else
+        {
+            Debug.Log($"[OpenAI NPC Setup] Avatar in Szene gefunden: {foundAvatarInstance.name}");
+            showObjectPicker = true; // Zeige trotzdem die erweiterten Optionen
         }
     }
 
-    public static void RunFullSetup()
+    void OnGUI()
     {
-        // Suche Settings und Avatar automatisch
-        var openAISettings = Resources.Load<ScriptableObject>("OpenAISettings");
-        var avatar = FindReadyPlayerMeAvatar();
-        var uiPanelSize = new Vector2(800, 400); // Breiteres Panel als Default
-        var uiPanelPosition = new Vector2(0, 0);
+        GUILayout.Label("OpenAI NPC Quick Setup", EditorStyles.boldLabel);
+        GUILayout.Space(10);
+        GUILayout.Label("Wähle ein Avatar-Prefab, Canvas-Modus und (optional) OpenAI API Key:", EditorStyles.wordWrappedLabel);
+        GUILayout.Space(10);
 
-        // Wenn kein Avatar gefunden, dynamisch nach Prefabs suchen
-        if (avatar == null)
+        // Avatar Prefab Auswahl
+        GUILayout.Label("Avatar Prefab:");
+        if (GUILayout.Button(selectedAvatarPrefab != null ? $"Ausgewählt: {selectedAvatarPrefab.name}" : "Avatar Prefab auswählen"))
         {
-            // 1. Suche nach Prefabs in Avatars-Ordner
-            string[] avatarPrefabPaths = System.IO.Directory.GetFiles(
-                "Assets/Ready Player Me/Avatars", "*.prefab", System.IO.SearchOption.AllDirectories);
-            GameObject prefab = null;
-            if (avatarPrefabPaths.Length == 1)
-            {
-                string assetPath = avatarPrefabPaths[0];
-                prefab = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
-            }
-            else if (avatarPrefabPaths.Length > 1)
-            {
-                // Mehrere Prefabs gefunden: Auswahl-Dialog
-                string[] prefabNames = new string[avatarPrefabPaths.Length];
-                for (int i = 0; i < avatarPrefabPaths.Length; i++)
-                    prefabNames[i] = System.IO.Path.GetFileNameWithoutExtension(avatarPrefabPaths[i]);
-                int selected = EditorUtility.DisplayDialogComplex(
-                    "Avatar Prefab Auswahl",
-                    "Es wurden mehrere Avatar-Prefabs gefunden. Bitte wähle eines aus:",
-                    prefabNames[0],
-                    prefabNames.Length > 1 ? prefabNames[1] : "Abbrechen",
-                    "Abbrechen");
-                if (selected >= 0 && selected < prefabNames.Length)
-                    prefab = AssetDatabase.LoadAssetAtPath<GameObject>(avatarPrefabPaths[selected]);
-            }
-            // 2. Fallback: PreviewAvatar.prefab
-            if (prefab == null)
-            {
-                prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
-                    "Assets/Ready Player Me/Core/Samples/QuickStart/PreviewAvatar/PreviewAvatar.prefab");
-            }
-            // 3. Wenn gefunden, instanziieren
-            if (prefab != null)
-            {
-                avatar = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
-                avatar.name = "DefaultAvatar";
-                Undo.RegisterCreatedObjectUndo(avatar, "Create Default Avatar");
-                Debug.Log($"[OpenAI NPC Setup] Kein Avatar gefunden, Default-Prefab instanziiert: {prefab.name}");
-            }
-            else
-            {
-                EditorUtility.DisplayDialog(
-                    "Kein Avatar gefunden",
-                    "Es wurde kein ReadyPlayerMe Avatar gefunden und kein Default-Prefab konnte geladen werden. Bitte installiere einen Avatar manuell oder starte den Avatar Loader.",
-                    "OK");
-                // Setup trotzdem fortsetzen, aber Warnung ausgeben
-            }
+            EditorGUIUtility.ShowObjectPicker<GameObject>(null, false, "t:Prefab", pickerControlName.GetHashCode());
+            Debug.Log("[OpenAI NPC Setup] ObjectPicker geöffnet.");
+        }
+        string commandName = Event.current.commandName;
+        if (commandName == "ObjectSelectorUpdated")
+        {
+            selectedAvatarPrefab = EditorGUIUtility.GetObjectPickerObject() as GameObject;
+            Debug.Log($"[OpenAI NPC Setup] ObjectPicker Auswahl: {(selectedAvatarPrefab != null ? selectedAvatarPrefab.name : "null")}");
+            Repaint();
         }
 
-        // Setup synchron ausführen
+        GUILayout.Space(10);
+        // Canvas Modus Auswahl
+        GUILayout.Label("Canvas Modus:");
+        selectedCanvasMode = (CanvasMode)EditorGUILayout.EnumPopup(selectedCanvasMode);
+        if (selectedCanvasMode == CanvasMode.ScreenSpaceCamera)
+        {
+            selectedCamera = (Camera)EditorGUILayout.ObjectField("Kamera", selectedCamera, typeof(Camera), true);
+        }
+        if (selectedCanvasMode == CanvasMode.WorldSpace)
+        {
+            worldCanvasScale = EditorGUILayout.FloatField("World Canvas Scale", worldCanvasScale);
+        }
+
+        GUILayout.Space(10);
+        // OpenAI API Key
+        GUILayout.Label("OpenAI API Key (optional):");
+        openAIApiKey = EditorGUILayout.TextField(openAIApiKey);
+        if (openAISettingsAsset != null)
+        {
+            GUILayout.Label($"Gefundenes OpenAISettings Asset: {openAISettingsAsset.name}");
+        }
+        else
+        {
+            GUILayout.Label("Kein OpenAISettings Asset gefunden. Es wird ein neues erstellt.");
+        }
+
+        GUILayout.Space(10);
+        // Setup starten
+        GUI.enabled = selectedAvatarPrefab != null;
+        if (GUILayout.Button("Setup starten"))
+        {
+            showObjectPicker = false;
+            // Prefab in Szene instanziieren
+            GameObject avatarInstance = (GameObject)PrefabUtility.InstantiatePrefab(selectedAvatarPrefab);
+            avatarInstance.name = selectedAvatarPrefab.name;
+            Undo.RegisterCreatedObjectUndo(avatarInstance, "Create Avatar from Picker");
+            Debug.Log($"[OpenAI NPC Setup] Avatar-Prefab instanziiert: {avatarInstance.name}");
+            // OpenAISettings ggf. API Key setzen
+            if (!string.IsNullOrEmpty(openAIApiKey) && openAISettingsAsset != null)
+            {
+                var so = new SerializedObject(openAISettingsAsset);
+                var keyProp = so.FindProperty("apiKey");
+                if (keyProp != null)
+                {
+                    keyProp.stringValue = openAIApiKey;
+                    so.ApplyModifiedProperties();
+                    Debug.Log("[OpenAI NPC Setup] OpenAI API Key im Settings Asset gesetzt.");
+                }
+            }
+            RunFullSetup(avatarInstance);
+        }
+        GUI.enabled = true;
+        if (GUILayout.Button("Abbrechen"))
+        {
+            showObjectPicker = false;
+            setupStarted = false;
+            Debug.Log("[OpenAI NPC Setup] Setup abgebrochen durch Benutzer.");
+            Close();
+        }
+    }
+
+    public void RunFullSetup(GameObject avatar)
+    {
+        var openAISettings = Resources.Load<ScriptableObject>("OpenAISettings");
+        var uiPanelSize = new Vector2(800, 400);
+        var uiPanelPosition = new Vector2(0, 0);
         bool allValid = false;
         OpenAINPCSetupUtility.ExecuteFullSetup(
             openAISettings,
@@ -80,15 +137,16 @@ public class OpenAINPCMenuSetup : EditorWindow
             uiPanelSize,
             uiPanelPosition,
             msg => Debug.Log($"[OpenAI NPC Setup] {msg}"),
-            valid => allValid = valid
+            valid => allValid = valid,
+            // Erweiterte Optionen an SetupUtility übergeben
+            new { canvasMode = selectedCanvasMode.ToString(), camera = selectedCamera, worldCanvasScale = worldCanvasScale }
         );
-
         if (allValid)
             EditorUtility.DisplayDialog("OpenAI NPC Setup", "Setup erfolgreich abgeschlossen!", "OK");
         else
             EditorUtility.DisplayDialog("OpenAI NPC Setup", "Setup abgeschlossen, aber mit Warnungen. Siehe Konsole.", "OK");
-
         Debug.Log("[OpenAI NPC Setup] Quick Setup abgeschlossen. Siehe Konsole für Details.");
+        Close();
     }
 
     private static GameObject FindReadyPlayerMeAvatar()

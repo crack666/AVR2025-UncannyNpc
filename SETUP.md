@@ -16,7 +16,7 @@ Das Setup ist in einzelne "Step"-Klassen unterteilt, die jeweils einen klar abge
 - **SetupLipSyncSystemStep**: (Optional) Initialisiert LipSync-Komponenten.
 - **LinkReferencesStep**: Verlinkt alle Komponenten (z.B. Settings auf RealtimeClient, Buttons auf UI-Manager) per Reflection.
 
-Der Haupt-Editor-Eintrag (`OpenAINPCMenuSetup.cs`) ruft diese Steps in der richtigen Reihenfolge auf.
+Der Haupt-Editor-Eintrag (`OpenAINPCMenuSetup.cs`) ruft diese Steps in der richtigen Reihenfolge auf. Die gesamte Setup-Logik ist in der statischen Utility-Klasse `OpenAINPCSetupUtility` gekapselt und wird direkt aus dem Editor-Kontext ausgeführt – es wird **kein temporäres Setup-GameObject** mehr in die Szene gelegt!
 
 ---
 
@@ -41,6 +41,7 @@ Der Haupt-Editor-Eintrag (`OpenAINPCMenuSetup.cs`) ruft diese Steps in der richt
 - **Neue UI-Elemente** können einfach in `CreateUISystemStep` ergänzt werden. Die Referenzierung im Manager erfolgt automatisch, wenn das Feld existiert.
 - **Weitere Komponenten** (z.B. neue Settings, weitere Manager) können in den jeweiligen Steps ergänzt und im `LinkReferencesStep` verknüpft werden.
 - **Debugging**: Ausführliche Debug.Log-Ausgaben zeigen an, welche Objekte erstellt und verlinkt wurden. Die Methode `FinalizeAndLogSetup` prüft abschließend, ob alle wichtigen Komponenten korrekt existieren und referenziert sind.
+- **Kein temporäres Setup-Objekt**: Das Setup läuft jetzt ausschließlich über das Editor-Menü und die Utility-Klasse. Die Szene bleibt sauber, es werden nur die wirklich benötigten Objekte erzeugt.
 
 ---
 
@@ -60,39 +61,7 @@ Der Haupt-Editor-Eintrag (`OpenAINPCMenuSetup.cs`) ruft diese Steps in der richt
 
 ---
 
-## Beispiel: Button-Referenzierung per Reflection
-```csharp
-var uiManagerType = System.Type.GetType("Managers.NpcUiManager") ?? System.Type.GetType("NpcUiManager");
-if (uiManagerType != null && Panel != null)
-{
-    var uiManager = Panel.GetComponent(uiManagerType);
-    var field = uiManagerType.GetField("connectButton", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
-    if (field != null)
-        field.SetValue(uiManager, buttonComponent);
-}
-```
-
----
-
-## Hinweise zu Unity-Versionen & API-Änderungen
-- **Object.FindObjectsOfType**: Ab Unity 2022.2 ist `Object.FindObjectsOfType<T>(true)` veraltet. Verwende stattdessen:
-  ```csharp
-  Object.FindObjectsByType<T>(FindObjectsSortMode.None);
-  ```
-  Dies gilt auch für das Prüfen auf EventSystem-Objekte im Setup.
-
-- **UnityEvent Listener**: Beim Hinzufügen von Methoden zu UnityEvents muss die Signatur exakt passen. Falls ein Fehler wie `cannot convert from 'method group' to 'UnityAction<string>'` auftritt, verwende einen Lambda-Ausdruck:
-  ```csharp
-  npcController.OnConversationUpdate.AddListener(msg => OnConversationUpdate(msg));
-  ```
-
-- **Enum-Werte prüfen**: Wenn ein Fehler wie `'NPCState' does not contain a definition for 'Talking'` auftritt, prüfe die tatsächlichen Enum-Namen (z.B. `Speaking` statt `Talking`).
-
-- **Methoden-Signaturen**: Achte darauf, dass alle Methoden, die als Listener verwendet werden, exakt die erwartete Signatur haben.
-
-- **Setup-Step-Parameter**: Wenn ein Setup-Step (z.B. `LinkReferencesStep.Execute`) neue Parameter erhält, müssen alle Aufrufer entsprechend angepasst werden.
-
----
-
-## Fazit
-Das Setup ist so gestaltet, dass es robust, nachvollziehbar und leicht erweiterbar ist. Alle wichtigen Fehlerquellen aus der Vergangenheit wurden berücksichtigt und automatisiert abgefangen. Für eigene Erweiterungen einfach die bestehenden Muster übernehmen und die Reflection-Logik nutzen.
+## Einstiegspunkt
+- **Setup starten:** Über das Menü `OpenAI NPC/Quick Setup` im Unity Editor. Es wird kein temporäres Setup-Objekt mehr erzeugt!
+- **Setup-Logik:** Liegt in `OpenAINPCSetupUtility` und den modularen Step-Klassen.
+- **Szenen-Setup:** Auch Test-Szenen (z.B. SafeTestSceneCreator) erzeugen kein SetupHelper-Objekt mehr, sondern verweisen auf das Editor-Menü.

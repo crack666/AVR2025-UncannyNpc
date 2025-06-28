@@ -13,9 +13,10 @@ namespace Setup.Steps
         public GameObject Panel { get; private set; }
         public MonoBehaviour UiManager { get; private set; }
 
-        public void Execute(Vector2 panelSize, Vector2 panelPosition)
+        // Erweiterung: Canvas-Modus, Kamera, WorldScale
+        public void Execute(Vector2 panelSize, Vector2 panelPosition, string canvasMode = "ScreenSpaceOverlay", Camera camera = null, float worldCanvasScale = 0.01f)
         {
-            Debug.Log($"[UI-Setup][CreateUISystemStep] started with Panel Size: {panelSize}, Position: {panelPosition}");
+            Debug.Log($"[UI-Setup][CreateUISystemStep] started with Panel Size: {panelSize}, Position: {panelPosition}, CanvasMode: {canvasMode}, Camera: {(camera ? camera.name : "null")}, WorldScale: {worldCanvasScale}");
 
             // --- Cleanup: Entferne alte UI-Objekte, damit keine Altlasten stören ---
             var oldPanel = GameObject.Find("NPC UI Panel");
@@ -47,9 +48,39 @@ namespace Setup.Steps
             // Canvas
             GameObject canvasGO = new GameObject("Canvas");
             Canvas = canvasGO.AddComponent<Canvas>();
-            canvasGO.AddComponent<CanvasScaler>();
+            var scaler = canvasGO.AddComponent<CanvasScaler>();
             var gr = canvasGO.AddComponent<GraphicRaycaster>();
-            Canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+
+            // Canvas-Modus setzen
+            if (canvasMode == "ScreenSpaceOverlay")
+            {
+                Canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            }
+            else if (canvasMode == "ScreenSpaceCamera")
+            {
+                Canvas.renderMode = RenderMode.ScreenSpaceCamera;
+                if (camera != null)
+                {
+                    Canvas.worldCamera = camera;
+                }
+                else
+                {
+                    Debug.LogWarning("[UI-Setup] Canvas-Modus ist ScreenSpaceCamera, aber keine Kamera angegeben!");
+                }
+            }
+            else if (canvasMode == "WorldSpace")
+            {
+                Canvas.renderMode = RenderMode.WorldSpace;
+                Canvas.transform.position = new Vector3(0, 1.5f, 2f); // Default vor Player
+                Canvas.transform.rotation = Quaternion.identity;
+                Canvas.transform.localScale = Vector3.one * worldCanvasScale;
+                Debug.Log($"[UI-Setup] Canvas WorldSpace-Scale gesetzt: {worldCanvasScale}");
+            }
+            else
+            {
+                Canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            }
+
             var canvasRect = canvasGO.GetComponent<RectTransform>() ?? canvasGO.AddComponent<RectTransform>();
             canvasRect.anchorMin = Vector2.zero;
             canvasRect.anchorMax = Vector2.one;
