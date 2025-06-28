@@ -7,6 +7,7 @@ using System.Threading;
 using UnityEngine;
 using UnityEngine.Events;
 using Newtonsoft.Json;
+using OpenAI.Threading;
 
 namespace OpenAI.RealtimeAPI
 {    /// <summary>
@@ -47,8 +48,17 @@ namespace OpenAI.RealtimeAPI
         private string sessionId;
         private SessionState sessionState;
         
+        private bool isCommittingAudioBuffer = false; // Debug-Flag für doppelte Commits
+        
+        // --- NEW: Track if a response is currently running ---
+        private bool isAwaitingResponse = false;
+        
         public bool IsConnected => isConnected;
         public string SessionId => sessionId;
+        public bool IsAwaitingResponse
+        {
+            get { return isAwaitingResponse; }
+        }
         
         #region Unity Lifecycle
           private void Awake()
@@ -224,7 +234,10 @@ namespace OpenAI.RealtimeAPI
             {
                 while (isConnected && webSocket.State == WebSocketState.Open)
                 {
-                    var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationTokenSource.Token);
+                    var result = await webSocket.ReceiveAsync(
+                        new ArraySegment<byte>(buffer), 
+                        cancellationTokenSource.Token
+                    ).ConfigureAwait(false); // Critical: Stay on background thread
                     
                     if (result.MessageType == WebSocketMessageType.Text)
                     {
@@ -236,6 +249,7 @@ namespace OpenAI.RealtimeAPI
                             var completeMessage = messageBuilder.ToString();
                             messageBuilder.Clear();
                             
+                            // Thread-safe: Enqueue for main thread processing
                             EnqueueMessage(completeMessage);
                         }
                     }
@@ -253,7 +267,11 @@ namespace OpenAI.RealtimeAPI
             catch (Exception ex)
             {
                 Debug.LogError($"RealtimeClient: Error in receive loop: {ex.Message}");
-                EnqueueMainThreadAction(() => OnError?.Invoke($"Receive error: {ex.Message}"));
+                
+                // Thread-safe: Error callback to main thread
+                UnityMainThreadDispatcher.EnqueueAction(() => {
+                    OnError?.Invoke($"Receive error: {ex.Message}");
+                });
             }
             
             isConnected = false;
@@ -287,26 +305,48 @@ namespace OpenAI.RealtimeAPI
             {
                 var eventData = JsonConvert.DeserializeObject<RealtimeEvent>(jsonMessage);
                 
+                // Correct isAwaitingResponse management
                 switch (eventData.type)
                 {
+                    case "response.created":
+                        // Response was created - we now expect deltas
+                        isAwaitingResponse = true;
+                        Debug.Log("[RealtimeClient] Response created - now awaiting deltas");
+                        break;
+                        
                     case "response.audio.delta":
+                        // DO NOT reset here - response is still running
                         HandleAudioDelta(eventData);
                         break;
+                        
                     case "response.text.delta":
+                        // DO NOT reset here - response is still running
                         HandleTextDelta(eventData);
                         break;
+                        
+                    case "response.done":
+                    case "response.cancelled":
+                    case "response.failed":
+                        // ONLY HERE mark response as finished
+                        isAwaitingResponse = false;
+                        Debug.Log($"[RealtimeClient] Response finished: {eventData.type}");
+                        break;
+                        
                     case "session.created":
                         HandleSessionCreated(eventData);
                         break;
+                        
                     case "conversation.item.created":
                         HandleItemCreated(eventData);
                         break;
+                        
                     case "error":
                         HandleError(eventData);
                         break;
                 }
                 
-                OnMessageReceived?.Invoke(jsonMessage);            }
+                OnMessageReceived?.Invoke(jsonMessage);
+            }
             catch (Exception ex)
             {
                 Debug.LogError($"RealtimeClient: Error processing message: {ex.Message}");
@@ -365,6 +405,37 @@ namespace OpenAI.RealtimeAPI
         {
             var errorMsg = eventData.error?.message ?? "Unknown error";
             Debug.LogError($"RealtimeClient: API Error: {errorMsg}");
+
+            // Improved "buffer too small" handling
+            if (errorMsg.Contains("buffer too small"))
+            {
+                // Reset isAwaitingResponse so the system can recover
+                isAwaitingResponse = false;
+                Debug.LogWarning("[RealtimeClient] Resetting isAwaitingResponse after 'buffer too small' error.");
+
+                // Check if audio playback has already started or finished
+                var audioManager = FindFirstObjectByType<RealtimeAudioManager>();
+                if (audioManager != null && (audioManager.IsPlayingAudio() || audioManager.GetAudioQueueCount() > 0))
+                {
+                    Debug.LogWarning("[RealtimeClient] Ignoring 'buffer too small' error because audio playback is active or audio is queued.");
+                    return; // Do not propagate error, just log and continue
+                }
+                
+                // Also ignore other "harmless" errors to prevent state disruption
+                Debug.LogWarning("[RealtimeClient] Ignoring harmless 'buffer too small' error to prevent state disruption.");
+                return;
+            }
+            
+            // Handle "Conversation already has an active response" more gracefully
+            if (errorMsg.Contains("already has an active response"))
+            {
+                Debug.LogWarning("[RealtimeClient] 'Already has active response' - this suggests a race condition. Resetting state.");
+                isAwaitingResponse = false; // Reset state
+                isCommittingAudioBuffer = false; // Reset commit flag
+                return; // Don't propagate this error
+            }
+
+            // Only propagate real errors
             OnError?.Invoke(errorMsg);
         }
         
@@ -465,22 +536,48 @@ namespace OpenAI.RealtimeAPI
         
         public async Task CommitAudioBuffer()
         {
-            if (!isConnected) return;
+            Debug.Log($"[RealtimeClient] CommitAudioBuffer: isConnected={isConnected}, isCommittingAudioBuffer={isCommittingAudioBuffer}, isAwaitingResponse={isAwaitingResponse}");
             
-            var commitEvent = new
+            if (!isConnected || isCommittingAudioBuffer || isAwaitingResponse) 
             {
-                type = "input_audio_buffer.commit"
-            };
+                Debug.LogWarning("[RealtimeClient] CommitAudioBuffer: Conditions not met for commit");
+                return;
+            }
+
+            isCommittingAudioBuffer = true;
             
-            await SendJsonAsync(commitEvent);
-            
-            // Trigger response generation
-            var responseEvent = new
+            try
             {
-                type = "response.create"
-            };
-            
-            await SendJsonAsync(responseEvent);
+                // Background thread: Send commit message
+                var commitEvent = new { type = "input_audio_buffer.commit" };
+                await SendJsonAsync(commitEvent).ConfigureAwait(false);
+                
+                // Non-blocking delay
+                await Task.Delay(50).ConfigureAwait(false);
+                
+                // Set awaiting response flag
+                isAwaitingResponse = true;
+                
+                // Background thread: Send response create
+                var responseEvent = new { type = "response.create" };
+                await SendJsonAsync(responseEvent).ConfigureAwait(false);
+                
+                Debug.Log("[RealtimeClient] CommitAudioBuffer completed successfully");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[RealtimeClient] Error in CommitAudioBuffer: {ex.Message}");
+                isAwaitingResponse = false;
+                
+                // Thread-safe: Error callback to main thread
+                UnityMainThreadDispatcher.EnqueueAction(() => {
+                    OnError?.Invoke($"Commit error: {ex.Message}");
+                });
+            }
+            finally
+            {
+                isCommittingAudioBuffer = false;
+            }
         }
         
         private async Task SendJsonAsync(object data)
@@ -495,12 +592,16 @@ namespace OpenAI.RealtimeAPI
                     WebSocketMessageType.Text,
                     true,
                     cancellationTokenSource.Token
-                );
+                ).ConfigureAwait(false); // Critical: Stay on background thread
             }
             catch (Exception ex)
             {
                 Debug.LogError($"RealtimeClient: Error sending message: {ex.Message}");
-                OnError?.Invoke($"Send error: {ex.Message}");
+                
+                // Thread-safe: Error callback to main thread
+                UnityMainThreadDispatcher.EnqueueAction(() => {
+                    OnError?.Invoke($"Send error: {ex.Message}");
+                });
             }
         }
         

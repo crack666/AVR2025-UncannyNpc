@@ -23,7 +23,8 @@ namespace OpenAI.RealtimeAPI
             audioData = data;
             sampleRate = rate;
             channels = channelCount;
-            timestamp = Time.time;
+            // Don't use Unity Time.time in constructor as it may be called from background thread
+            timestamp = 0f; // Will be set by caller if needed
         }
         
         /// <summary>
@@ -60,6 +61,21 @@ namespace OpenAI.RealtimeAPI
                 pcmData[i * 2 + 1] = (byte)((sample >> 8) & 0xFF);
             }
             
+            return pcmData;
+        }
+        
+        /// <summary>
+        /// Konvertiert float[] samples zu PCM16 byte[] (mit SampleCount)
+        /// </summary>
+        public static byte[] FloatToPCM16(float[] samples, int sampleCount)
+        {
+            byte[] pcmData = new byte[sampleCount * 2];
+            for (int i = 0; i < sampleCount; i++)
+            {
+                short sample = (short)(Mathf.Clamp(samples[i], -1f, 1f) * short.MaxValue);
+                pcmData[i * 2] = (byte)(sample & 0xFF);
+                pcmData[i * 2 + 1] = (byte)((sample >> 8) & 0xFF);
+            }
             return pcmData;
         }
         

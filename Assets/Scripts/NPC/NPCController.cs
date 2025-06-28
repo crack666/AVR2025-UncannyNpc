@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.Events;
 using OpenAI.RealtimeAPI;
+using OpenAI.Threading;
+using System;
 
 namespace NPC
 {
@@ -9,48 +11,46 @@ namespace NPC
     /// Handles conversation flow, animations, and audio playback
     /// </summary>
     public class NPCController : MonoBehaviour
-    {        [Header("Components")]
+    {
+        [Header("Components")]
         [SerializeField] private RealtimeClient realtimeClient;
         [SerializeField] private RealtimeAudioManager audioManager;
         [SerializeField] private Animator npcAnimator;
         [SerializeField] private AudioSource audioSource;
-        
+
         [Header("NPC Configuration")]
         [SerializeField] private string npcName = "AI Assistant";
-        [SerializeField] private string personality = "friendly and helpful";
         [SerializeField] private bool enableLipSync = true;
-        [SerializeField] private bool enableGestures = true;
-        
+        [SerializeField] private bool autoReturnToListening = true;
+
         [Header("Animation Settings")]
-        [SerializeField] private float lipSyncSensitivity = 1.0f;
         [SerializeField] private AnimationCurve lipSyncCurve = AnimationCurve.Linear(0, 0, 1, 1);
         [SerializeField] private string talkingAnimationTrigger = "StartTalking";
         [SerializeField] private string listeningAnimationTrigger = "StartListening";
         [SerializeField] private string idleAnimationTrigger = "GoIdle";
-        
+
         [Header("Events")]
         public UnityEvent OnNPCStartedSpeaking;
         public UnityEvent OnNPCFinishedSpeaking;
         public UnityEvent OnNPCStartedListening;
         public UnityEvent OnNPCFinishedListening;
         public UnityEvent<string> OnConversationUpdate;
-        
+
         // State management
         private NPCState currentState = NPCState.Idle;
-        private bool isProcessingAudio = false;
         private AudioClip currentResponseClip;
         private string accumulatedText = "";
-        
+
         // Audio processing for lip sync
         private float[] audioSamples;
-        private int audioSampleRate = 44100;
         private const int SAMPLE_WINDOW = 256;
-        
+
         public NPCState CurrentState => currentState;
         public bool IsConnected => realtimeClient != null && realtimeClient.IsConnected;
-        
+        public bool IsAwaitingResponse => realtimeClient != null && realtimeClient.IsAwaitingResponse;
+
         #region Unity Lifecycle
-        
+
         private void Awake()
         {            // Initialize components if not assigned
             if (realtimeClient == null)
@@ -62,9 +62,51 @@ namespace NPC
             if (audioSource == null)
                 audioSource = GetComponent<AudioSource>();
         }
-        
+
+        // Handle voice change session restart
+        private async void RestartSessionForVoiceChange()
+        {
+            try
+            {
+                Debug.Log($"[NPCController] Restarting session for voice change for {npcName}");
+                
+                // Stop current session completely
+                SetState(NPCState.Connecting);
+                
+                if (audioManager != null)
+                {
+                    audioManager.ForceStopAllRecording();
+                }
+                
+                await realtimeClient.DisconnectAsync();
+                
+                // Wait a moment for cleanup
+                await System.Threading.Tasks.Task.Delay(500);
+                
+                // Restart connection
+                var success = await realtimeClient.ConnectAsync();
+                
+                if (success)
+                {
+                    Debug.Log($"[NPCController] Session restarted successfully for voice change for {npcName}");
+                    SetState(NPCState.Idle);
+                }
+                else
+                {
+                    Debug.LogError($"[NPCController] Failed to restart session for voice change for {npcName}");
+                    SetState(NPCState.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[NPCController] Error during session restart for voice change: {ex.Message}");
+                SetState(NPCState.Error);
+            }
+        }
+
         private void OnEnable()
         {
+            Debug.Log("[NPCController] OnEnable: Registering event listeners");
             if (realtimeClient != null)
             {
                 realtimeClient.OnConnected.AddListener(OnRealtimeConnected);
@@ -72,7 +114,8 @@ namespace NPC
                 realtimeClient.OnAudioReceived.AddListener(OnAudioReceived);
                 realtimeClient.OnTextReceived.AddListener(OnTextReceived);
                 realtimeClient.OnError.AddListener(OnRealtimeError);
-            }            if (audioManager != null)
+            }
+            if (audioManager != null)
             {
                 audioManager.OnVoiceDetected.AddListener(OnVoiceDetectionChanged);
                 audioManager.OnRecordingStarted.AddListener(OnUserStartedSpeaking);
@@ -81,9 +124,10 @@ namespace NPC
                 audioManager.OnAudioPlaybackFinished.AddListener(OnAudioPlaybackFinished);
             }
         }
-        
+
         private void OnDisable()
         {
+            Debug.Log("[NPCController] OnDisable: Removing event listeners");
             if (realtimeClient != null)
             {
                 realtimeClient.OnConnected.RemoveListener(OnRealtimeConnected);
@@ -91,7 +135,8 @@ namespace NPC
                 realtimeClient.OnAudioReceived.RemoveListener(OnAudioReceived);
                 realtimeClient.OnTextReceived.RemoveListener(OnTextReceived);
                 realtimeClient.OnError.RemoveListener(OnRealtimeError);
-            }            if (audioManager != null)
+            }
+            if (audioManager != null)
             {
                 audioManager.OnVoiceDetected.RemoveListener(OnVoiceDetectionChanged);
                 audioManager.OnRecordingStarted.RemoveListener(OnUserStartedSpeaking);
@@ -100,59 +145,111 @@ namespace NPC
                 audioManager.OnAudioPlaybackFinished.RemoveListener(OnAudioPlaybackFinished);
             }
         }
-        
+
         private void Update()
         {
             UpdateLipSync();
             UpdateAnimationState();
         }
-        
+
         #endregion
-        
+
         #region Public API
-        
+
         public async void ConnectToOpenAI()
         {
             if (realtimeClient != null)
             {
                 SetState(NPCState.Connecting);
                 var success = await realtimeClient.ConnectAsync();
-                
+
                 if (!success)
                 {
                     SetState(NPCState.Error);
                 }
             }
         }
-        
+
         public async void DisconnectFromOpenAI()
         {
             if (realtimeClient != null)
             {
+                Debug.Log($"[NPCController] Disconnecting {npcName} from OpenAI");
+                
+                // FORCE stop all audio operations FIRST and WAIT
+                if (audioManager != null)
+                {
+                    audioManager.ForceStopAllRecording();
+                    
+                    // Give time for operations to fully stop
+                    await System.Threading.Tasks.Task.Delay(200);
+                }
+                
+                // Then disconnect from API
                 await realtimeClient.DisconnectAsync();
+                
+                // Wait for full disconnect
+                await System.Threading.Tasks.Task.Delay(100);
+                
                 SetState(NPCState.Idle);
+                Debug.Log($"[NPCController] {npcName} fully disconnected from OpenAI");
             }
         }
-          public void StartConversation()
+        public void StartConversation()
         {
-            if (IsConnected && currentState == NPCState.Idle)
+            Debug.Log($"[NPCController] StartConversation called. State: {currentState}, Connected: {IsConnected}, AwaitingResponse: {IsAwaitingResponse}");
+            
+            if (IsConnected && currentState == NPCState.Idle && !IsAwaitingResponse)
             {
                 SetState(NPCState.Listening);
-                audioManager?.StartRecording();
-                realtimeClient?.StartListening();
+                if (audioManager != null)
+                {
+                    audioManager.StartRecording();
+                }
+                if (realtimeClient != null)
+                {
+                    realtimeClient.StartListening();
+                }
+                Debug.Log($"[NPCController] Conversation started for {npcName}");
+            }
+            else
+            {
+                Debug.LogWarning($"[NPCController] Cannot start conversation: Connected={IsConnected}, State={currentState}, AwaitingResponse={IsAwaitingResponse}");
             }
         }
-        
+
         public void StopConversation()
         {
-            if (currentState == NPCState.Listening || currentState == NPCState.Speaking)
+            Debug.Log($"[NPCController] StopConversation called. State: {currentState}, AwaitingResponse: {IsAwaitingResponse}");
+            
+            if (currentState == NPCState.Listening && !IsAwaitingResponse)
             {
-                audioManager?.StopRecording();
-                realtimeClient?.StopListening();
+                // Use async method for stopping - fire and forget
+                if (audioManager != null)
+                {
+                    _ = audioManager.StopRecordingAsync();
+                }
+                
+                if (realtimeClient != null)
+                {
+                    realtimeClient.StopListening();
+                }
+                
                 SetState(NPCState.Idle);
+                Debug.Log($"[NPCController] Conversation stopped for {npcName}");
+            }
+            else if (currentState == NPCState.Speaking)
+            {
+                // If stopped during speaking, just change state
+                SetState(NPCState.Idle);
+                Debug.Log($"[NPCController] Conversation stopped during speaking for {npcName}");
+            }
+            else
+            {
+                Debug.LogWarning($"[NPCController] Cannot stop conversation: State={currentState}, AwaitingResponse={IsAwaitingResponse}");
             }
         }
-        
+
         public void SendTextMessage(string message)
         {
             if (IsConnected && !string.IsNullOrEmpty(message))
@@ -161,22 +258,23 @@ namespace NPC
                 OnConversationUpdate?.Invoke($"User: {message}");
             }
         }
-        
+
         #endregion
-        
+
         #region Event Handlers
-        
+
         private void OnRealtimeConnected()
         {
             Debug.Log($"NPC '{npcName}' connected to OpenAI Realtime API");
             SetState(NPCState.Idle);
         }
-        
+
         private void OnRealtimeDisconnected()
         {
             Debug.Log($"NPC '{npcName}' disconnected from OpenAI Realtime API");
             SetState(NPCState.Idle);
-        }        private void OnAudioReceived(AudioChunk audioChunk)
+        }
+        private void OnAudioReceived(AudioChunk audioChunk)
         {
             if (audioChunk != null && audioChunk.data != null)
             {
@@ -185,7 +283,7 @@ namespace NPC
                 Debug.Log($"NPC '{npcName}' received audio chunk, queued for playback");
             }
         }
-        
+
         private void OnTextReceived(string text)
         {
             if (!string.IsNullOrEmpty(text))
@@ -194,15 +292,65 @@ namespace NPC
                 OnConversationUpdate?.Invoke($"{npcName}: {accumulatedText}");
             }
         }
-        
+
         private void OnRealtimeError(string error)
         {
             Debug.LogError($"NPC '{npcName}' Realtime API Error: {error}");
+            
+            // Granular error handling
+            
+            // 1. Ignore harmless "buffer too small" errors
+            if (error.Contains("buffer too small"))
+            {
+                Debug.LogWarning($"NPC '{npcName}' ignoring harmless buffer-too-small error: {error}");
+                return; // No state change
+            }
+            
+            // 2. Handle "Already has active response" as race condition
+            if (error.Contains("already has an active response"))
+            {
+                Debug.LogWarning($"NPC '{npcName}' detected race condition: {error}");
+                // NO error state, just audio reset
+                if (audioManager != null)
+                {
+                    audioManager.ResetAfterError();
+                }
+                return; // No state change to Error
+            }
+            
+            // 3. Handle voice change errors - requires session restart
+            if (error.Contains("Cannot update a conversation's voice if assistant audio is present"))
+            {
+                Debug.LogWarning($"NPC '{npcName}' voice change during session not allowed - restarting session: {error}");
+                RestartSessionForVoiceChange();
+                return; // Don't set error state, handle restart
+            }
+            
+            // 4. Other network/connection errors
+            if (error.Contains("connection") || error.Contains("network") || error.Contains("timeout"))
+            {
+                Debug.LogWarning($"NPC '{npcName}' connection error, attempting recovery: {error}");
+                // Try reconnection instead of error state
+                SetState(NPCState.Connecting);
+                ConnectToOpenAI(); // Async reconnect
+                return;
+            }
+            
+            // 5. Only set error state for real critical errors
+            Debug.LogError($"NPC '{npcName}' critical error, setting error state: {error}");
             SetState(NPCState.Error);
+            
+            // Audio reset for all errors
+            if (audioManager != null)
+            {
+                audioManager.ResetAfterError();
+            }
         }
-        
+
         private void OnVoiceDetectionChanged(bool isDetected)
         {
+            Debug.Log($"[NPCController] Voice detection changed: {isDetected}, current state: {currentState}");
+            
             if (isDetected)
             {
                 OnUserStartedSpeaking();
@@ -212,7 +360,7 @@ namespace NPC
                 OnUserStoppedSpeaking();
             }
         }
-        
+
         private void OnUserStartedSpeaking()
         {
             if (currentState == NPCState.Listening)
@@ -222,50 +370,136 @@ namespace NPC
                 SetAnimationTrigger("UserSpeaking");
             }
         }
-        
+
         private void OnUserStoppedSpeaking()
         {
             if (currentState == NPCState.Listening)
             {
                 Debug.Log($"User stopped speaking to {npcName}");
                 SetAnimationTrigger("UserFinishedSpeaking");
-                // The realtime client will automatically process the audio
+                
+                // Thread-safe: Coordinate stop recording
+                // Use fire-and-forget async to prevent blocking
+                CoordinateStopRecordingAsync();
             }
         }
-        
+
+        // Async coordination without blocking main thread
+        private async void CoordinateStopRecordingAsync()
+        {
+            try
+            {
+                // Only stop recording if we're not already expecting a response
+                if (!IsAwaitingResponse && audioManager != null && audioManager.IsRecording)
+                {
+                    Debug.Log($"[NPCController] Stopping recording after voice detection ended");
+                    
+                    // Use the new async method - fire and forget
+                    await audioManager.StopRecordingAsync();
+                }
+                else
+                {
+                    Debug.Log($"[NPCController] Not stopping recording: IsAwaitingResponse={IsAwaitingResponse}, IsRecording={audioManager?.IsRecording}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[NPCController] Error in CoordinateStopRecordingAsync: {ex.Message}");
+            }
+        }
+
         private void OnAudioPlaybackStarted()
         {
             // Audio playback is starting - NPC should be in speaking state
             SetState(NPCState.Speaking);
             Debug.Log($"NPC '{npcName}' started speaking (audio playback started)");
         }
-        
+
         private void OnAudioPlaybackFinished()
         {
-            // Audio playback finished - reset accumulated text and return to idle
+            // Audio playback finished - reset accumulated text and return to listening
             OnNPCFinishedSpeaking?.Invoke();
             accumulatedText = ""; // Reset for next response
-            SetState(NPCState.Idle);
-            Debug.Log($"NPC '{npcName}' finished speaking (audio playback finished)");
+            
+            Debug.Log($"[NPCController] Audio playback finished for {npcName}. IsConnected: {IsConnected}, IsAwaitingResponse: {IsAwaitingResponse}");
+            
+            // CRITICAL: Wait a moment before restarting recording to ensure cleanup
+            if (autoReturnToListening && IsConnected && !IsAwaitingResponse)
+            {
+                StartCoroutine(DelayedReturnToListening());
+            }
+            else
+            {
+                SetState(NPCState.Idle);
+                Debug.Log($"NPC '{npcName}' finished speaking (audio playback finished) - staying idle");
+            }
         }
         
+        private System.Collections.IEnumerator DelayedReturnToListening()
+        {
+            // Wait a frame to ensure all audio cleanup is complete
+            yield return new WaitForEndOfFrame();
+            yield return new WaitForSeconds(0.1f); // Small delay for cleanup
+            
+            // DETAILED debugging of conditions
+            bool isConnected = IsConnected;
+            bool isAwaitingResponse = IsAwaitingResponse;
+            bool isSpeaking = currentState == NPCState.Speaking;
+            bool isRecording = audioManager?.IsRecording ?? false;
+            
+            Debug.Log($"[NPCController] DelayedReturnToListening check for {npcName}: " +
+                     $"IsConnected={isConnected}, IsAwaitingResponse={isAwaitingResponse}, " +
+                     $"CurrentState={currentState}, IsSpeaking={isSpeaking}, IsRecording={isRecording}");
+            
+            // FIXED: Handle all relevant states and focus on starting recording
+            if (isConnected && !isAwaitingResponse)
+            {
+                // Ensure we're in listening state
+                if (currentState != NPCState.Listening)
+                {
+                    SetState(NPCState.Listening);
+                }
+                
+                // Start recording if not already recording
+                if (audioManager != null && !audioManager.IsRecording)
+                {
+                    audioManager.StartRecording();
+                    Debug.Log($"NPC '{npcName}' successfully started recording (State: {currentState})");
+                }
+                else if (audioManager != null && audioManager.IsRecording)
+                {
+                    Debug.Log($"NPC '{npcName}' already recording - no action needed");
+                }
+                else
+                {
+                    Debug.LogWarning($"NPC '{npcName}' cannot start recording: audioManager is null");
+                    SetState(NPCState.Idle);
+                }
+            }
+            else
+            {
+                Debug.Log($"NPC '{npcName}' conditions not met for listening. Setting to Idle. IsConnected={isConnected}, IsAwaitingResponse={isAwaitingResponse}");
+                SetState(NPCState.Idle);
+            }
+        }
+
         #endregion
-        
+
         #region Audio & Animation        
         private void UpdateLipSync()
         {
             if (!enableLipSync || npcAnimator == null)
                 return;
-            
+
             // Get audio data from RealtimeAudioManager's playback source
             var audioManager = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeAudioManager>();
             if (audioManager == null || !audioManager.IsPlayingAudio())
                 return;
-            
+
             // Note: We need to access the playback audio source from RealtimeAudioManager
             // For now, disable lip sync until we can properly integrate with the audio manager
             // TODO: Add GetPlaybackAudioSource() method to RealtimeAudioManager for lip sync
-            
+
             /*
             // Simple amplitude-based lip sync
             audioSamples = new float[SAMPLE_WINDOW];
@@ -284,18 +518,18 @@ namespace NPC
             npcAnimator.SetFloat("LipSync", lipSyncValue);
             */
         }
-        
+
         private void UpdateAnimationState()
         {
             if (npcAnimator == null) return;
-            
+
             // Update animator with current state
             npcAnimator.SetBool("IsConnected", IsConnected);
             npcAnimator.SetBool("IsListening", currentState == NPCState.Listening);
             npcAnimator.SetBool("IsSpeaking", currentState == NPCState.Speaking);
             npcAnimator.SetBool("HasError", currentState == NPCState.Error);
         }
-        
+
         private void SetAnimationTrigger(string triggerName)
         {
             if (npcAnimator != null && !string.IsNullOrEmpty(triggerName))
@@ -303,20 +537,20 @@ namespace NPC
                 npcAnimator.SetTrigger(triggerName);
             }
         }
-        
+
         #endregion
-        
+
         #region State Management
-        
+
         private void SetState(NPCState newState)
         {
             if (currentState != newState)
             {
                 var previousState = currentState;
                 currentState = newState;
-                
+
                 Debug.Log($"NPC '{npcName}' state changed: {previousState} -> {newState}");
-                
+
                 // Handle state-specific animations
                 switch (newState)
                 {
@@ -336,32 +570,39 @@ namespace NPC
                 }
             }
         }
-        
+
         #endregion
-        
+
         #region Debugging
-        
+
         [ContextMenu("Test Connection")]
         private void TestConnection()
         {
             ConnectToOpenAI();
         }
-        
+
         [ContextMenu("Start Test Conversation")]
         private void StartTestConversation()
         {
             StartConversation();
         }
-        
+
         [ContextMenu("Send Test Message")]
         private void SendTestMessage()
         {
             SendTextMessage("Hello, how are you today?");
         }
-        
+
+        [ContextMenu("Reset Error State")]
+        private void ResetErrorState()
+        {
+            Debug.Log("[NPCController] ResetErrorState: Setting state to Idle");
+            SetState(NPCState.Idle);
+        }
+
         #endregion
     }
-    
+
     public enum NPCState
     {
         Idle,

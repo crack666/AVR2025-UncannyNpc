@@ -108,7 +108,7 @@ namespace OpenAI.RealtimeAPI
         public string id;
         public string @object;
         public string status;
-        public string status_details;
+        public object status_details; // war vorher string
         public OutputItem[] output;
         public Usage usage;
     }
