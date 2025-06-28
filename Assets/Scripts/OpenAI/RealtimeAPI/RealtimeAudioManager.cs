@@ -141,8 +141,8 @@ namespace OpenAI.RealtimeAPI
                     microphoneClip = null;
                 }
 
-                // SEQUENTIAL PROCESSING: Send remaining buffer first, then commit
                 bool hasRemainingBuffer = false;
+                byte[] pcmData = null;
                 if (bufferPosition > 0)
                 {
                     int minSamples = settings.SampleRate / 20; // 50ms minimum
@@ -154,7 +154,7 @@ namespace OpenAI.RealtimeAPI
                         Array.Copy(microphoneBuffer, lastSamples, bufferPosition);
                         
                         // Background thread: Convert and send audio FIRST
-                        byte[] pcmData = await System.Threading.Tasks.Task.Run(() => 
+                        pcmData = await System.Threading.Tasks.Task.Run(() => 
                             AudioChunk.FloatToPCM16(lastSamples, bufferPosition)
                         ).ConfigureAwait(false);
                         
@@ -174,25 +174,25 @@ namespace OpenAI.RealtimeAPI
                     bufferPosition = 0;
                 }
 
-                // SEQUENTIAL: Only commit after audio is sent and processed
-                if (realtimeClient != null && realtimeClient.IsConnected && !realtimeClient.IsAwaitingResponse)
+                // CRITICAL FIX: Only commit if we actually sent audio AND are not awaiting response
+                if (realtimeClient != null && realtimeClient.IsConnected && !realtimeClient.IsAwaitingResponse && hasRemainingBuffer)
                 {
-                    if (hasRemainingBuffer || true) // Always try to commit if we have a connection
+                    if (!isCommittingAudioBuffer)
                     {
-                        if (!isCommittingAudioBuffer)
-                        {
-                            Debug.Log($"[RealtimeAudioManager] StopRecordingAsync: CommitAudioBuffer being called after audio processing.");
-                            await CommitAudioBufferAsync().ConfigureAwait(false);
-                        }
-                        else
-                        {
-                            Debug.LogWarning("[RealtimeAudioManager] CommitAudioBuffer skipped: already committing!");
-                        }
+                        Debug.Log($"[RealtimeAudioManager] StopRecordingAsync: CommitAudioBuffer being called after sending {pcmData?.Length ?? 0} bytes.");
+                        await CommitAudioBufferAsync().ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[RealtimeAudioManager] CommitAudioBuffer skipped: already committing!");
                     }
                 }
                 else
                 {
-                    Debug.LogWarning($"[RealtimeAudioManager] CommitAudioBuffer skipped: IsConnected={realtimeClient?.IsConnected}, IsAwaitingResponse={realtimeClient?.IsAwaitingResponse}");
+                    string reason = !hasRemainingBuffer ? "No audio sent" : 
+                                   !realtimeClient?.IsConnected == true ? "Not connected" : 
+                                   realtimeClient?.IsAwaitingResponse == true ? "Awaiting response" : "Unknown";
+                    Debug.Log($"[RealtimeAudioManager] CommitAudioBuffer skipped: {reason}");
                 }
 
                 // Main thread: Trigger Unity events
