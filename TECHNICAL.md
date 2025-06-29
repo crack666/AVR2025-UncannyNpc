@@ -449,9 +449,36 @@ public static void ExecuteFullSetup(...) {
     // ...
 }
 ```
+---
+### uLipSync – Funktionsweise, Profil und BlendShape-Mapping
+
+**uLipSync** ist ein Open-Source-LipSync-System, das auf Phonemerkennung basiert und speziell für Echtzeit-Sprachanimation in Unity entwickelt wurde.
+
+#### Wie funktioniert uLipSync?
+- uLipSync analysiert das Audiosignal in Echtzeit auf dem Audio-Thread (über `OnAudioFilterRead`).
+- Es vergleicht das Signal mit gespeicherten **Phoneme-Mustern** (MFCC-Templates) aus einem Profil.
+- Für jedes erkannte Phonem (z.B. A, I, U, E, O, N) wird ein Event ausgelöst.
+- Die zugehörige `uLipSyncBlendShape`-Komponente setzt dann die passenden BlendShapes am Avatar (z.B. `mouthOpen`, `mouthSmile`).
+- Die Werte werden als Float zwischen 0 und 1 gesetzt – das entspricht dem, was ReadyPlayerMe für realistische Mundanimation erwartet.
+
+#### Was ist ein uLipSync-Profil und warum ist es nötig?
+- Ein **Profil** enthält für jedes Phonem ein akustisches Muster (MFCC), das als Referenz für die Spracherkennung dient.
+- Ohne Profil kann uLipSync keine Sprache erkennen und keine Mundanimation erzeugen.
+- Das Standardprofil (`uLipSync-Profile-Sample`) deckt die wichtigsten Laute ab und funktioniert für viele Stimmen direkt.
+- Für beste Ergebnisse kann ein eigenes Profil kalibriert werden (siehe uLipSync-Dokumentation).
+
+#### Automatische Einrichtung durch das Setup-Skript
+- Das Setup-Skript übernimmt folgende Schritte:
+  1. Weist der uLipSync-Komponente auf der PlaybackAudioSource automatisch das Standardprofil zu.
+  2. Verbindet das Event „On LipSync Update“ mit der Methode `uLipSyncBlendShape.OnLipSyncUpdate` auf dem Avatar.
+  3. Setzt im `uLipSyncBlendShape`-Script den richtigen SkinnedMeshRenderer (z.B. `Renderer_Head`).
+  4. Legt für jedes Phonem die BlendShape-Regeln an (z.B. A → mouthOpen, I → mouthSmile) und setzt „Max Blend Shape Value“ auf 1.
+
+**Hinweis:**
+- Die automatische Einrichtung deckt alle nötigen Schritte ab. Für individuelle Anpassungen (z.B. andere BlendShapes oder eigene Profile) kann die Konfiguration im Inspector nachträglich angepasst werden.
+- Die Phoneme und BlendShape-Regeln sind so gewählt, dass sie mit ReadyPlayerMe-Avataren direkt realistische Mundbewegungen erzeugen.
 
 ---
-
 **This technical documentation reflects our journey from choppy audio to production-ready gapless streaming. Every optimization and pattern here was learned through real implementation challenges.** 🎯
 
 *For setup instructions, see [SETUP.md](SETUP.md)*
