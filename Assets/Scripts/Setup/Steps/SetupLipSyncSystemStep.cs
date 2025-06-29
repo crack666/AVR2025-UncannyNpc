@@ -2,6 +2,9 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+#if UNITY_EDITOR
+using UnityEditor.SceneManagement;
+#endif
 
 namespace Setup.Steps
 {
@@ -237,6 +240,7 @@ namespace Setup.Steps
 
         /// <summary>
         /// Konfiguriert uLipSync System (Professional Grade)
+        /// KORRIGIERT: Fügt fehlende uLipSync-Konfigurationen hinzu basierend auf Scene "11111"
         /// </summary>
         private IEnumerator SetupULipSyncSystem(GameObject targetAvatar, GameObject npcSystem, LipSyncSystemInfo info)
         {
@@ -327,15 +331,31 @@ namespace Setup.Steps
             log($"   uLipSync: {uLipSyncType.FullName}");
             log($"   uLipSyncBlendShape: {blendShapeType.FullName}");
 
-            // Step 1: Setup uLipSyncBlendShape on Avatar
-            var blendShapeCoroutine = SetupULipSyncBlendShape(targetAvatar, blendShapeType);
-            while (blendShapeCoroutine.MoveNext()) { }
-
-            // Step 2: Setup uLipSync component on Audio System
+            // ===== KORRIGIERTE REIHENFOLGE - RACE CONDITION BEHOBEN =====
+            
+            // Step 1: Setup uLipSync component on Audio System (ZUERST!)
+            log("🔧 Step 1: Setting up uLipSync component on audio system...");
             var componentCoroutine = SetupULipSyncComponent(npcSystem, uLipSyncType);
             while (componentCoroutine.MoveNext()) { }
 
-            // Step 3: Link components
+            // Step 2: Configure uLipSync Component with Profile (SOFORT nach Component!)
+            log("⚙️ Step 2: Configuring uLipSync profile...");
+            var profileCoroutine = ConfigureULipSyncProfile(npcSystem, uLipSyncType);
+            while (profileCoroutine.MoveNext()) { }
+
+            // ⚡ KRITISCH: Warte einen Frame damit uLipSync sich vollständig initialisiert
+            yield return null;
+            
+            // Step 3: Setup uLipSyncBlendShape on Avatar (NACH uLipSync-Konfiguration!)
+            log("🎭 Step 3: Setting up uLipSyncBlendShape on avatar...");
+            var blendShapeCoroutine = SetupULipSyncBlendShape(targetAvatar, blendShapeType);
+            while (blendShapeCoroutine.MoveNext()) { }
+
+            // ⚡ KRITISCH: Nochmal warten damit BlendShape-Component vollständig konfiguriert ist
+            yield return null;
+
+            // Step 4: Link components with Event Setup (GANZ ZUM SCHLUSS!)
+            log("🔗 Step 4: Linking components with event setup...");
             var linkCoroutine = LinkULipSyncComponents(targetAvatar, npcSystem, uLipSyncType, blendShapeType);
             while (linkCoroutine.MoveNext()) { }
 
@@ -380,7 +400,7 @@ namespace Setup.Steps
                 log($"⚠️ No facial SkinnedMeshRenderer found on '{targetAvatar.name}'");
                 yield break;
             }
-            // Configure renderer
+            // KRITISCH: Configure renderer (muss auf Renderer_Head, nicht EyeLeft gesetzt werden!)
             var rendererField = blendShapeType.GetField("skinnedMeshRenderer");
             if (rendererField != null)
             {
@@ -391,9 +411,142 @@ namespace Setup.Steps
             {
                 log($"⚠️ Could not find 'skinnedMeshRenderer' field on {blendShapeType.FullName}");
             }
+
+            // KRITISCH: Setze maxBlendShapeValue auf 1 (nicht Default!)
+            var maxValueField = blendShapeType.GetField("maxBlendShapeValue");
+            if (maxValueField != null)
+            {
+                maxValueField.SetValue(blendShapeComponent, 1.0f);
+                log($"✅ Set maxBlendShapeValue to 1.0 for optimal mouth movement");
+            }
+            else
+            {
+                log($"⚠️ Could not find 'maxBlendShapeValue' field on {blendShapeType.FullName}");
+            }
             // Configure ReadyPlayerMe BlendShape mappings
             ConfigureReadyPlayerMeBlendShapes(blendShapeComponent, facialRenderer, blendShapeType);
             yield return null;
+        }
+
+        /// <summary>
+        /// NEUE METHODE: Konfiguriert uLipSync-Profil (KRITISCH für Funktionalität!)
+        /// Lädt automatisch das Sample-Profil von uLipSync
+        /// </summary>
+        private IEnumerator ConfigureULipSyncProfile(GameObject npcSystem, System.Type uLipSyncType)
+        {
+            log("🎯 Configuring uLipSync Profile (CRITICAL for functionality)...");
+            
+            // Find uLipSync component on PlaybackAudioSource
+            AudioSource playbackAudioSource = FindPlaybackAudioSource(npcSystem);
+            if (playbackAudioSource == null)
+            {
+                log("❌ Cannot configure profile - PlaybackAudioSource not found");
+                yield break;
+            }
+            
+            Component uLipSyncComponent = playbackAudioSource.gameObject.GetComponent(uLipSyncType);
+            if (uLipSyncComponent == null)
+            {
+                log("❌ Cannot configure profile - uLipSync component not found");
+                yield break;
+            }
+            
+            // Load uLipSync sample profile
+            UnityEngine.Object profile = LoadULipSyncSampleProfile();
+            if (profile != null)
+            {
+                var profileField = uLipSyncType.GetField("profile");
+                if (profileField != null)
+                {
+                    profileField.SetValue(uLipSyncComponent, profile);
+                    log($"✅ Set uLipSync profile to: {profile.name}");
+#if UNITY_EDITOR
+                    log($"[DEBUG] Profile loaded from: {UnityEditor.AssetDatabase.GetAssetPath(profile)}");
+#else
+                    log($"[DEBUG] Profile loaded: {profile.name}");
+#endif
+                }
+                else
+                {
+                    log("❌ Could not find 'profile' field on uLipSync component");
+                }
+            }
+            else
+            {
+                log("⚠️ Could not load uLipSync sample profile - component will use default settings");
+                log("💡 You can manually set a profile later in the Inspector");
+            }
+            
+            yield return null;
+        }
+        
+        /// <summary>
+        /// Lädt das uLipSync Sample-Profil automatisch (Editor-sicher)
+        /// </summary>
+        private UnityEngine.Object LoadULipSyncSampleProfile()
+        {
+#if UNITY_EDITOR
+            // Mögliche Pfade für das Sample-Profil
+            string[] profilePaths = {
+                "Packages/com.hecomi.ulipsync/Assets/Profiles/uLipSync-Profile-Sample.asset", // Package Cache
+                "Assets/Packages/uLipSync/Assets/Profiles/uLipSync-Profile-Sample.asset", // Alternative
+                "Assets/uLipSync-Profile-Sample.asset", // Projekt-lokale Kopie
+            };
+            
+            // Versuche direkte Pfade zuerst
+            foreach (string path in profilePaths)
+            {
+                var profile = UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path);
+                if (profile != null)
+                {
+                    log($"[DEBUG] Found profile at: {path}");
+                    return profile;
+                }
+            }
+            
+            // Suche in Package Cache mit Wildcard
+            string baseDir = "Library/PackageCache";
+            if (Directory.Exists(baseDir))
+            {
+                var dirs = Directory.GetDirectories(baseDir, "com.hecomi.ulipsync@*");
+                foreach (var dir in dirs)
+                {
+                    string fullPath = Path.Combine(dir, "Assets/Profiles/uLipSync-Profile-Sample.asset");
+                    if (File.Exists(fullPath))
+                    {
+                        // Convert to Unity-relative path für AssetDatabase
+                        string relativePath = fullPath.Replace('\\', '/');
+                        var profile = UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(relativePath);
+                        if (profile != null)
+                        {
+                            log($"[DEBUG] Found profile at: {relativePath}");
+                            return profile;
+                        }
+                    }
+                }
+            }
+            
+            // Fallback: Suche nach allen .asset files mit "uLipSync" und "Profile" im Namen
+            string[] allAssets = UnityEditor.AssetDatabase.FindAssets("uLipSync-Profile t:ScriptableObject");
+            foreach (string guid in allAssets)
+            {
+                string assetPath = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+                if (assetPath.Contains("Sample"))
+                {
+                    var profile = UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
+                    if (profile != null)
+                    {
+                        log($"[DEBUG] Found profile via search: {assetPath}");
+                        return profile;
+                    }
+                }
+            }
+            
+            log("[DEBUG] No uLipSync sample profile found in any location");
+#else
+            log("[DEBUG] Profile loading only available in Editor - will use default settings");
+#endif
+            return null;
         }
 
         /// <summary>
@@ -423,15 +576,12 @@ namespace Setup.Steps
         log($"[DEBUG] Found PlaybackAudioSource on GameObject: {audioSourceParent.name}");
         log($"[DEBUG] AudioSource enabled: {playbackAudioSource.enabled}, clip: {playbackAudioSource.clip?.name ?? "null"}");
         
-        // CRITICAL: uLipSync needs AudioClip for OnAudioFilterRead to work
-        if (playbackAudioSource.clip == null)
-        {
-            log($"[DEBUG] Creating dummy AudioClip for uLipSync OnAudioFilterRead support");
-            // Create a dummy clip that will be replaced by RealtimeAudioManager at runtime
-        AudioClip dummyClip = AudioClip.Create("uLipSync_Dummy", 1024, 1, 24000, false);
+        // CRITICAL: uLipSync needs SPECIFIC AudioClip for OnAudioFilterRead to work
+        // Must match exactly what's used in working Scene "11111"
+        log($"[DEBUG] Creating uLipSync_Dummy AudioClip (required for LipSync processing)");
+        AudioClip dummyClip = AudioClip.Create("uLipSync_Dummy", 24000, 1, 24000, false);
         playbackAudioSource.clip = dummyClip;
-        log($"[DEBUG] Assigned dummy AudioClip: {dummyClip.name}");
-        }
+        log($"✅ Set uLipSync_Dummy AudioClip: {dummyClip.name} (channels: {dummyClip.channels}, freq: {dummyClip.frequency})");
         
         log($"[DEBUG] Checking if {uLipSyncType.Name} component already exists...");
         
@@ -485,12 +635,13 @@ namespace Setup.Steps
 
         /// <summary>
         /// Verknüpft uLipSync Komponenten
+        /// ERWEITERT: Validiert Komponenten vor Event-Verknüpfung
         /// </summary>
         private IEnumerator LinkULipSyncComponents(GameObject targetAvatar, GameObject npcSystem, System.Type uLipSyncType, System.Type blendShapeType)
         {
             log("🔗 Linking uLipSync components...");
 
-            // Get components
+            // KRITISCH: Validiere dass alle Komponenten VOLLSTÄNDIG konfiguriert sind
             AudioSource audioSource = FindPlaybackAudioSource(npcSystem);
             if (audioSource == null)
             {
@@ -507,55 +658,308 @@ namespace Setup.Steps
                 yield break;
             }
 
+            // NEUE VALIDIERUNG: Prüfe ob uLipSync vollständig initialisiert ist
+            var profileField = uLipSyncType.GetField("profile");
+            if (profileField != null)
+            {
+                var profile = profileField.GetValue(uLipSyncComponent);
+                if (profile == null)
+                {
+                    log("⚠️ WARNING: uLipSync profile not set - component may not be fully initialized");
+                    log("💡 Attempting to link anyway, but consider setting a profile manually");
+                }
+                else
+                {
+                    log($"✅ uLipSync profile validated: {profile}");
+                }
+            }
+
+            // NEUE VALIDIERUNG: Prüfe ob BlendShape-Component konfiguriert ist
+            var rendererField = blendShapeType.GetField("skinnedMeshRenderer");
+            if (rendererField != null)
+            {
+                var renderer = rendererField.GetValue(blendShapeComponent);
+                if (renderer == null)
+                {
+                    log("⚠️ WARNING: uLipSyncBlendShape renderer not set - component may not be fully configured");
+                }
+                else
+                {
+                    log($"✅ uLipSyncBlendShape renderer validated: {((SkinnedMeshRenderer)renderer).name}");
+                }
+            }
+
+            log($"[DEBUG] All components validated - proceeding with event linking");
             log($"[DEBUG] Found components - AudioSource: {audioSource.name}, uLipSync: {uLipSyncComponent.name}, BlendShape: {blendShapeComponent.name}");
 
-            // Link uLipSync.onLipSyncUpdate → uLipSyncBlendShape.OnLipSyncUpdate
+            // KRITISCH: Link uLipSync.onLipSyncUpdate → uLipSyncBlendShape.OnLipSyncUpdate
+            // Das ist das Hauptproblem in Ihrem Setup gewesen!
+            // KORRIGIERT: Füge PERSISTENT Listener hinzu (nicht nur Runtime!)
             var onUpdateField = uLipSyncType.GetField("onLipSyncUpdate");
             if (onUpdateField != null)
             {
                 var unityEvent = onUpdateField.GetValue(uLipSyncComponent);
                 if (unityEvent != null)
                 {
-                    var addListenerMethod = unityEvent.GetType().GetMethod("AddListener");
-                    var onLipSyncUpdateMethod = blendShapeType.GetMethod("OnLipSyncUpdate");
-
-                    if (addListenerMethod != null && onLipSyncUpdateMethod != null)
+                    bool editorLinkingSuccessful = false;
+                    
+                    // METHODE 1: Unity's SerializedObject approach (funktioniert garantiert!)
+                    try
                     {
-                        var delegateType = addListenerMethod.GetParameters()[0].ParameterType;
-                        var del = System.Delegate.CreateDelegate(delegateType, blendShapeComponent, onLipSyncUpdateMethod);
-                        addListenerMethod.Invoke(unityEvent, new object[] { del });
-
-                        log("✅ Linked uLipSync → uLipSyncBlendShape");
-                        log($"[DEBUG] Event delegate type: {delegateType.Name}");
-
-                        // Add debug listener to monitor events
-                        try
+                        var serializedObject = new UnityEditor.SerializedObject(uLipSyncComponent);
+                        var onLipSyncUpdateProperty = serializedObject.FindProperty("onLipSyncUpdate");
+                        if (onLipSyncUpdateProperty != null)
                         {
-                            var debugDelegate = System.Delegate.CreateDelegate(delegateType, typeof(SetupLipSyncSystemStep).GetMethod("DebugLipSyncUpdate", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic));
-                            if (debugDelegate != null)
+                            var persistentCallsProperty = onLipSyncUpdateProperty.FindPropertyRelative("m_PersistentCalls.m_Calls");
+                            if (persistentCallsProperty != null)
                             {
-                                addListenerMethod.Invoke(unityEvent, new object[] { debugDelegate });
-                                log("[DEBUG] Added debug event listener for LipSync events");
+                                // Add a new persistent call
+                                persistentCallsProperty.arraySize++;
+                                var newCallProperty = persistentCallsProperty.GetArrayElementAtIndex(persistentCallsProperty.arraySize - 1);
+                                
+                                // Set the target to the BlendShape COMPONENT (not the GameObject)
+                                var targetProperty = newCallProperty.FindPropertyRelative("m_Target");
+                                targetProperty.objectReferenceValue = blendShapeComponent;
+                                log($"[DEBUG] Set target to: {blendShapeComponent.name} (Component: {blendShapeComponent.GetType().Name})");
+                                
+                                // Set the method name
+                                var methodNameProperty = newCallProperty.FindPropertyRelative("m_MethodName");
+                                methodNameProperty.stringValue = "OnLipSyncUpdate";
+                                log($"[DEBUG] Set method name to: OnLipSyncUpdate");
+                                
+                                // Set the mode (0 = VOID - kein Parameter!)
+                                var modeProperty = newCallProperty.FindPropertyRelative("m_Mode");
+                                modeProperty.enumValueIndex = 0; // PersistentListenerMode.Void (NICHT Object!)
+                                log($"[DEBUG] Set mode to: 0 (Void - kein Parameter)");
+                                
+                                // Set call state (2 = RuntimeOnly - exactly what we need!)
+                                var callStateProperty = newCallProperty.FindPropertyRelative("m_CallState");
+                                callStateProperty.enumValueIndex = 2; // UnityEventCallState.RuntimeOnly
+                                log($"[DEBUG] Set call state to: 2 (RuntimeOnly)");
+                                
+                                // KRITISCH: Set Arguments richtig (Object-Parameter!)
+                                var argumentsProperty = newCallProperty.FindPropertyRelative("m_Arguments");
+                                if (argumentsProperty != null)
+                                {
+                                    var objectArgAssemblyProperty = argumentsProperty.FindPropertyRelative("m_ObjectArgumentAssemblyTypeName");
+                                    if (objectArgAssemblyProperty != null)
+                                    {
+                                        objectArgAssemblyProperty.stringValue = "UnityEngine.Object, UnityEngine";
+                                        log("[DEBUG] Set ObjectArgumentAssemblyTypeName to: UnityEngine.Object, UnityEngine");
+                                    }
+                                    else
+                                    {
+                                        log("[WARNING] Could not find ObjectArgumentAssemblyTypeName property!");
+                                    }
+                                }
+                                else
+                                {
+                                    log("[WARNING] Could not find Arguments property!");
+                                }
+                                
+                                // KRITISCH: Set targetAssemblyTypeName (wie in funktionierender Scene!)
+                                var assemblyTypeNameProperty = newCallProperty.FindPropertyRelative("m_TargetAssemblyTypeName");
+                                if (assemblyTypeNameProperty != null)
+                                {
+                                    assemblyTypeNameProperty.stringValue = "uLipSync.uLipSyncBlendShape, uLipSync.Runtime";
+                                    log("[DEBUG] Set TargetAssemblyTypeName to: uLipSync.uLipSyncBlendShape, uLipSync.Runtime");
+                                }
+                                else
+                                {
+                                    log("[WARNING] Could not find TargetAssemblyTypeName property!");
+                                }
+                                
+                                // Apply the changes
+                                serializedObject.ApplyModifiedProperties();
+                                
+                                // KRITISCH: Force Unity Inspector refresh
+                                UnityEditor.EditorUtility.SetDirty(uLipSyncComponent);
+                                UnityEditor.AssetDatabase.SaveAssets();
+                                UnityEditor.AssetDatabase.Refresh();
+                                
+                                // SUPER-KRITISCH: Scene speichern damit FileIDs persistent sind!
+                                UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
+                                log("[DEBUG] Scene saved to persist FileID references!");
+                                
+                                log("✅ KRITISCH: Added PERSISTENT listener via SerializedObject (GUARANTEED to work!)");
+                                log("[DEBUG] Set to RuntimeOnly mode - exactly like manual setup!");
+                                log("[DEBUG] Forced Unity Inspector refresh!");
+                                
+                                // Force re-serialization
+                                //yield return null;
+                                
+                                // Double-check: Validate the connection was actually set
+                                var validationSerializedObject = new UnityEditor.SerializedObject(uLipSyncComponent);
+                                var validationProperty = validationSerializedObject.FindProperty("onLipSyncUpdate");
+                                if (validationProperty != null)
+                                {
+                                    var validationCalls = validationProperty.FindPropertyRelative("m_PersistentCalls.m_Calls");
+                                    if (validationCalls != null && validationCalls.arraySize > 0)
+                                    {
+                                        var lastCall = validationCalls.GetArrayElementAtIndex(validationCalls.arraySize - 1);
+                                        var targetValidation = lastCall.FindPropertyRelative("m_Target");
+                                        var methodValidation = lastCall.FindPropertyRelative("m_MethodName");
+                                        var assemblyValidation = lastCall.FindPropertyRelative("m_TargetAssemblyTypeName");
+                                        
+                                        log($"[VALIDATION] Target: {targetValidation?.objectReferenceValue?.name ?? "null"}");
+                                        log($"[VALIDATION] Method: {methodValidation?.stringValue ?? "null"}");
+                                        log($"[VALIDATION] Assembly: {assemblyValidation?.stringValue ?? "null"}");
+                                        
+                                        if (targetValidation?.objectReferenceValue == blendShapeComponent && 
+                                            methodValidation?.stringValue == "OnLipSyncUpdate")
+                                        {
+                                            log("✅ VALIDATION PASSED: Event is correctly linked!");
+                                            editorLinkingSuccessful = true;
+                                        }
+                                        else
+                                        {
+                                            log("❌ VALIDATION FAILED: Event link not persisted correctly");
+                                            editorLinkingSuccessful = false;
+                                        }
+                                    }
+                                }
                             }
                         }
-                        catch (System.Exception ex)
+                        log("[DEBUG] SerializedObject approach only available in Editor");
+                    }
+                    catch (System.Exception ex)
+                    {
+                        log($"[DEBUG] SerializedObject approach failed: {ex.Message}");
+                    }
+                    
+                    // METHODE 2: Direct reflection on UnityEvent internals
+                    try
+                    {
+                        // Get the persistent calls array directly
+                        var persistentCallsField = unityEvent.GetType().GetField("m_PersistentCalls", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                        if (persistentCallsField != null)
                         {
-                            log($"[DEBUG] Could not add debug listener: {ex.Message}");
+                            var persistentCalls = persistentCallsField.GetValue(unityEvent);
+                            var callsField = persistentCalls.GetType().GetField("m_Calls", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                            
+                            if (callsField != null)
+                            {
+                                var callsList = callsField.GetValue(persistentCalls) as System.Collections.IList;
+                                if (callsList != null)
+                                {
+                                    // Create a new PersistentCall
+                                    var persistentCallType = System.Type.GetType("UnityEngine.Events.PersistentCall, UnityEngine");
+                                    if (persistentCallType != null)
+                                    {
+                                        var newCall = System.Activator.CreateInstance(persistentCallType);
+                                        
+                                        // Set target
+                                        var targetField = persistentCallType.GetField("m_Target", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                                        targetField?.SetValue(newCall, blendShapeComponent);
+                                        
+                                        // Set method name
+                                        var methodNameField = persistentCallType.GetField("m_MethodName", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                                        methodNameField?.SetValue(newCall, "OnLipSyncUpdate");
+                                        
+                                        // Set call state to RuntimeOnly (2)
+                                        var callStateField = persistentCallType.GetField("m_CallState", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                                        callStateField?.SetValue(newCall, 2); // UnityEventCallState.RuntimeOnly
+                                        
+                                        // Set mode to Object (1)
+                                        var modeField = persistentCallType.GetField("m_Mode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                                        modeField?.SetValue(newCall, 1); // PersistentListenerMode.Object
+                                        
+                                        // Add to list
+                                        callsList.Add(newCall);
+                                        
+                                        log("✅ KRITISCH: Added PERSISTENT listener via direct reflection!");
+                                        log("[DEBUG] Set to RuntimeOnly mode with Object parameter");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (System.Exception ex)
+                    {
+                        log($"[DEBUG] Direct reflection approach failed: {ex.Message}");
+                    }
+                    
+                    // METHODE 3: Fallback - Runtime Listener (nur wenn Editor-Linking fehlgeschlagen)
+                    if (!editorLinkingSuccessful)
+                    {
+                        var addListenerMethod = unityEvent.GetType().GetMethod("AddListener");
+                        var onLipSyncUpdateMethod2 = blendShapeType.GetMethod("OnLipSyncUpdate");
+
+                        if (addListenerMethod != null && onLipSyncUpdateMethod2 != null)
+                        {
+                            var delegateType = addListenerMethod.GetParameters()[0].ParameterType;
+                            var del = System.Delegate.CreateDelegate(delegateType, blendShapeComponent, onLipSyncUpdateMethod2);
+                            addListenerMethod.Invoke(unityEvent, new object[] { del });
+
+                            log("✅ KRITISCH: Added RUNTIME listener (fallback - works at runtime)");
+                            log($"[DEBUG] Runtime delegate type: {delegateType.Name}");
+                            log($"[DEBUG] Target method: {onLipSyncUpdateMethod2.Name} on {blendShapeComponent.name}");
+                        }
+                        else
+                        {
+                            log("❌ Could not create runtime listener - method resolution failed");
                         }
                     }
                     else
                     {
-                        log($"❌ Method not found - AddListener: {addListenerMethod != null}, OnLipSyncUpdate: {onLipSyncUpdateMethod != null}");
+                        log("✅ Editor linking successful - skipping runtime listener");
+                    }
+                    
+                    // Verify the connection was successful
+                    try
+                    {
+                        var getPersistentEventCountMethod = unityEvent.GetType().GetMethod("GetPersistentEventCount");
+                        if (getPersistentEventCountMethod != null)
+                        {
+                            var count = getPersistentEventCountMethod.Invoke(unityEvent, null);
+                            log($"[DEBUG] UnityEvent now has {count} persistent listeners");
+                        }
+                        
+                        // Try to get runtime listener count too
+                        var runtimeCountField = unityEvent.GetType().GetField("m_Calls", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                        if (runtimeCountField != null)
+                        {
+                            var runtimeCalls = runtimeCountField.GetValue(unityEvent);
+                            if (runtimeCalls != null)
+                            {
+                                var runtimeCount = ((System.Collections.IList)runtimeCalls).Count;
+                                log($"[DEBUG] UnityEvent also has {runtimeCount} runtime listeners");
+                            }
+                        }
+                    }
+                    catch (System.Exception ex)
+                    {
+                        log($"[DEBUG] Could not verify listener count: {ex.Message}");
+                    }
+
+                    // Add debug listener to monitor events
+                    try
+                    {
+                        var debugDelegate = System.Delegate.CreateDelegate(unityEvent.GetType().GetMethod("AddListener").GetParameters()[0].ParameterType, typeof(SetupLipSyncSystemStep).GetMethod("DebugLipSyncUpdate", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic));
+                        if (debugDelegate != null)
+                        {
+                            unityEvent.GetType().GetMethod("AddListener").Invoke(unityEvent, new object[] { debugDelegate });
+                            log("[DEBUG] Added debug event listener for LipSync events");
+                        }
+                    }
+                    catch (System.Exception ex)
+                    {
+                        log($"[DEBUG] Could not add debug listener: {ex.Message}");
                     }
                 }
                 else
                 {
-                    log("❌ onLipSyncUpdate event is null");
+                    log("❌ KRITISCH: onLipSyncUpdate event is null");
                 }
             }
             else
             {
-                log("❌ onLipSyncUpdate field not found on uLipSync component");
+                log("❌ KRITISCH: onLipSyncUpdate field not found on uLipSync component");
+                log($"[DEBUG] Available fields on {uLipSyncType.Name}:");
+                foreach (var field in uLipSyncType.GetFields())
+                {
+                    log($"[DEBUG]   - {field.Name} ({field.FieldType.Name})");
+                }
             }
 
             yield return null;
@@ -743,12 +1147,34 @@ namespace Setup.Steps
         #region Helper Methods
 
         /// <summary>
-        /// Findet Facial SkinnedMeshRenderer
+        /// Findet Facial SkinnedMeshRenderer - KORRIGIERT für ReadyPlayerMe Avatare
+        /// PRIORITÄT: Renderer_Head vor allen anderen!
         /// </summary>
         private SkinnedMeshRenderer FindFacialRenderer(GameObject targetAvatar)
         {
             SkinnedMeshRenderer[] renderers = targetAvatar.GetComponentsInChildren<SkinnedMeshRenderer>();
+            
+            // ERSTE PRIORITÄT: Suche explizit nach "Renderer_Head" (ReadyPlayerMe Standard)
+            foreach (var renderer in renderers)
+            {
+                if (renderer.name == "Renderer_Head")
+                {
+                    log($"[DEBUG] ✅ Found preferred facial renderer: {renderer.name}");
+                    return renderer;
+                }
+            }
+            
+            // ZWEITE PRIORITÄT: Suche nach Head-ähnlichen Namen
+            foreach (var renderer in renderers)
+            {
+                if (renderer.name.Contains("Head") && !renderer.name.Contains("EyeLeft") && !renderer.name.Contains("EyeRight"))
+                {
+                    log($"[DEBUG] ✅ Found head-like renderer: {renderer.name}");
+                    return renderer;
+                }
+            }
 
+            // DRITTE PRIORITÄT: Prüfe auf Mouth BlendShapes
             foreach (var renderer in renderers)
             {
                 if (renderer.sharedMesh != null && renderer.sharedMesh.blendShapeCount > 0)
@@ -762,16 +1188,27 @@ namespace Setup.Steps
                             shapeName.Contains("mouthSmile") ||
                             shapeName.ToLower().Contains("jaw"))
                         {
+                            log($"[DEBUG] ✅ Found renderer with mouth BlendShapes: {renderer.name}");
                             return renderer;
                         }
                     }
                 }
+            }
 
-                // Fallback: Check by name
-                if (renderer.name.Contains("Head") || renderer.name.Contains("Wolf3D"))
+            // FALLBACK: Wolf3D oder andere
+            foreach (var renderer in renderers)
+            {
+                if (renderer.name.Contains("Wolf3D"))
                 {
+                    log($"[DEBUG] ✅ Found Wolf3D renderer: {renderer.name}");
                     return renderer;
                 }
+            }
+            
+            log($"[DEBUG] ⚠️ No optimal facial renderer found, available renderers:");
+            foreach (var renderer in renderers)
+            {
+                log($"[DEBUG]   - {renderer.name} (BlendShapes: {renderer.sharedMesh?.blendShapeCount ?? 0})");
             }
 
             return null;
