@@ -92,7 +92,7 @@ namespace Setup
             logAction?.Invoke($"   {(avatarFound ? "✅" : "❌")} Avatar Found");
             logAction?.Invoke($"   {(npcSystem != null ? "✅" : "❌")} NPC System Created");
             logAction?.Invoke($"   {(npcSystem?.GetComponent("RealtimeAudioManager") != null ? "✅" : "❌")} Audio System Setup");
-            logAction?.Invoke($"   {(targetAvatar?.GetComponent("ReadyPlayerMeLipSync") != null ? "✅" : "❌")} LipSync Configured");
+            logAction?.Invoke($"   {(hasLipSync ? "✅" : "❌")} LipSync Configured");
             logAction?.Invoke($"   {(uiPanel?.GetComponent("NpcUiManager") != null ? "✅" : "❌")} UI System Created");
             logAction?.Invoke($"   {(allValid ? "✅" : "❌")} Validation Passed");
             logAction?.Invoke("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -210,7 +210,7 @@ namespace Setup
             logAction?.Invoke($"   {(avatarFound ? "✅" : "❌")} Avatar Found");
             logAction?.Invoke($"   {(npcSystem != null ? "✅" : "❌")} NPC System Created");
             logAction?.Invoke($"   {(npcSystem?.GetComponent("RealtimeAudioManager") != null ? "✅" : "❌")} Audio System Setup");
-            logAction?.Invoke($"   {(targetAvatar?.GetComponent("ReadyPlayerMeLipSync") != null ? "✅" : "❌")} LipSync Configured");
+            logAction?.Invoke($"   {(hasLipSync ? "✅" : "❌")} LipSync Configured");
             logAction?.Invoke($"   {(uiPanel?.GetComponent("NpcUiManager") != null ? "✅" : "❌")} UI System Created");
             logAction?.Invoke($"   {(allValid ? "✅" : "❌")} Validation Passed");
             logAction?.Invoke("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

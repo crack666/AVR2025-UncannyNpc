@@ -564,6 +564,10 @@ public class OpenAINPCMenuSetup : EditorWindow
 
     public void RunFullSetup(GameObject avatar)
     {
+        // Initialize UnityMainThreadDispatcher early to prevent threading issues
+        OpenAI.Threading.UnityMainThreadDispatcher.Initialize();
+        Debug.Log("[OpenAI NPC Setup] UnityMainThreadDispatcher initialized successfully.");
+        
         var openAISettings = Resources.Load<ScriptableObject>("OpenAISettings");
         var uiPanelSize = new Vector2(800, 400);
         var uiPanelPosition = new Vector2(0, 0);
