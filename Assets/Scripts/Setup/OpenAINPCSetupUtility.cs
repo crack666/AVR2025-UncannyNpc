@@ -59,22 +59,30 @@ namespace Setup
 
             // Step 4: Audio System
             var audioStep = new ConfigureAudioSystemStep(logAction);
-            audioStep.Execute(npcSystem).MoveNext();
+            var audioCoroutine = audioStep.Execute(npcSystem);
+            while (audioCoroutine.MoveNext()) { } // Execute complete coroutine
 
             // Step 5: LipSync System
             var lipSyncStep = new SetupLipSyncSystemStep(logAction);
-            lipSyncStep.Execute(targetAvatar, npcSystem).MoveNext();
+            var lipSyncCoroutine = lipSyncStep.Execute(targetAvatar, npcSystem);
+            while (lipSyncCoroutine.MoveNext()) { } // Execute complete coroutine
 
             // Step 6: References Linking
             var linkStep = new LinkReferencesStep(logAction);
-            linkStep.Execute(npcSystem, uiStep.Panel, targetAvatar, openAISettings).MoveNext();
+            var linkCoroutine = linkStep.Execute(npcSystem, uiStep.Panel, targetAvatar, openAISettings);
+            while (linkCoroutine.MoveNext()) { } // Execute complete coroutine
 
             // Step 7: Final Validation
             bool allValid = true;
             if (npcSystem?.GetComponent("RealtimeClient") == null) allValid = false;
             if (npcSystem?.GetComponent("RealtimeAudioManager") == null) allValid = false;
             if (npcSystem?.GetComponent("NPCController") == null) allValid = false;
-            if (targetAvatar?.GetComponent("ReadyPlayerMeLipSync") == null) allValid = false;
+            
+            // Check for uLipSync first, then fallback
+            bool hasLipSync = targetAvatar?.GetComponent("uLipSync.uLipSyncBlendShape") != null ||
+                             targetAvatar?.GetComponent("ReadyPlayerMeLipSync") != null;
+            if (!hasLipSync) allValid = false;
+            
             var uiPanel = GameObject.Find("NPC UI Panel");
             if (uiPanel?.GetComponent("NpcUiManager") == null) allValid = false;
 
@@ -169,22 +177,30 @@ namespace Setup
 
             // Step 4: Audio System
             var audioStep = new ConfigureAudioSystemStep(logAction);
-            audioStep.Execute(npcSystem).MoveNext();
+            var audioCoroutine = audioStep.Execute(npcSystem);
+            while (audioCoroutine.MoveNext()) { } // Execute complete coroutine
 
             // Step 5: LipSync System
             var lipSyncStep = new SetupLipSyncSystemStep(logAction);
-            lipSyncStep.Execute(targetAvatar, npcSystem).MoveNext();
+            var lipSyncCoroutine = lipSyncStep.Execute(targetAvatar, npcSystem);
+            while (lipSyncCoroutine.MoveNext()) { } // Execute complete coroutine
 
             // Step 6: References Linking
             var linkStep = new LinkReferencesStep(logAction);
-            linkStep.Execute(npcSystem, uiStep.Panel, targetAvatar, openAISettings).MoveNext();
+            var linkCoroutine = linkStep.Execute(npcSystem, uiStep.Panel, targetAvatar, openAISettings);
+            while (linkCoroutine.MoveNext()) { } // Execute complete coroutine
 
             // Step 7: Final Validation
             bool allValid = true;
             if (npcSystem?.GetComponent("RealtimeClient") == null) allValid = false;
             if (npcSystem?.GetComponent("RealtimeAudioManager") == null) allValid = false;
             if (npcSystem?.GetComponent("NPCController") == null) allValid = false;
-            if (targetAvatar?.GetComponent("ReadyPlayerMeLipSync") == null) allValid = false;
+            
+            // Check for uLipSync first, then fallback
+            bool hasLipSync = targetAvatar?.GetComponent("uLipSync.uLipSyncBlendShape") != null ||
+                             targetAvatar?.GetComponent("ReadyPlayerMeLipSync") != null;
+            if (!hasLipSync) allValid = false;
+            
             var uiPanel = GameObject.Find("NPC UI Panel");
             if (uiPanel?.GetComponent("NpcUiManager") == null) allValid = false;
 

@@ -316,3 +316,30 @@ Error Message: [Full console output]
 
 *For technical details, see [TECHNICAL.md](TECHNICAL.md)*  
 *For project overview, see [README.md](README.md)*
+
+---
+
+## 🗣️ Optional: Professionelles LipSync mit uLipSync
+
+**uLipSync** ist ein Open-Source, hochqualitatives LipSync-System für Unity, das perfekt mit diesem Projekt funktioniert.
+
+### Installation von uLipSync
+
+1. **Unity öffnen** (Projekt geladen)
+2. Menü: **Window → Package Manager**
+3. Oben rechts: **+** → **Add package from Git URL...**
+4. URL eingeben:
+   ```
+   https://github.com/hecomi/uLipSync.git#upm
+   ```
+5. **Add** klicken und Installation abwarten
+6. Nach der Installation: **Setup-Script erneut ausführen** (OpenAI NPC → Quick Setup)
+
+**Hinweis:**
+- Das Setup-Script erkennt uLipSync automatisch und konfiguriert es als bevorzugtes LipSync-System.
+- Ist uLipSync nicht installiert, wird automatisch das Fallback-System aktiviert.
+- Für beste Ergebnisse: uLipSync BlendShape-Mapping im Inspector prüfen und ggf. anpassen.
+
+**Weitere Infos:**
+- [uLipSync GitHub](https://github.com/hecomi/uLipSync)
+- [uLipSync Dokumentation](https://github.com/hecomi/uLipSync#readme)
