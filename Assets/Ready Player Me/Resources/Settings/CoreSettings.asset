@@ -15,5 +15,5 @@ MonoBehaviour:
   Subdomain: demo
   AppId: 
   EnableLogging: 0
-  EnableAnalytics: 0
+  EnableAnalytics: 1
   BodyType: 1
