@@ -94,6 +94,16 @@
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
+	},
+    "com.hecomi.ulipsync": {
+      "version": "https://github.com/hecomi/uLipSync.git#upm",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.unity.burst": "1.4.11",
+        "com.unity.mathematics": "1.2.5"
+      },
+      "hash": "ece3272762f2148dd8d3e658ec04fcbd79d4d97e"
     },
     "com.unity.ai.navigation": {
       "version": "2.0.6",

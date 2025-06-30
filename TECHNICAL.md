@@ -13,6 +13,8 @@
 5. [File Structure](#-file-structure)
 6. [Configuration](#-configuration)
 7. [Extending the System](#-extending-the-system)
+8. [Audio Pipeline & LipSync Integration](#-audio-pipeline-lipsync-integration)
+9. [Automated Setup System: Orchestrator & StepScripts](#-automated-setup-system-orchestrator--stepscripts)
 
 ---
 
@@ -329,26 +331,154 @@ public class TavernKeeperNPC : NPCController
 
 ---
 
-## 🐛 Debugging and Monitoring
+## 🔊 Audio Pipeline & LipSync Integration (2025 Update)
 
-### **Debug Information Available**
+### Audio Pipeline Overview
 
-```csharp
-// Real-time audio status
-string audioStatus = audioManager.GetGaplessStreamDebugInfo();
-// Output: "Gapless Streaming: ENABLED | Started: True | Buffers: 47 | Tracks: 3"
+Unsere Audio-Pipeline basiert auf einem asynchronen, thread-sicheren Streaming-Ansatz, der von OpenAI's WebConsole-Referenz inspiriert ist. Die wichtigsten Stationen:
 
-// Connection status
-bool isConnected = realtimeClient.IsConnected;
-bool isAwaitingResponse = realtimeClient.IsAwaitingResponse;
+1. **OpenAI RealtimeClient** empfängt Audio-Chunks (PCM16) via WebSocket.
+2. **RealtimeAudioManager** konvertiert diese zu Float32 und speist sie in eine Queue von Stream-Buffern (1024 Samples pro Buffer).
+3. **Unity OnAudioRead()** (läuft auf Unitys Audio-Thread) zieht kontinuierlich Daten aus der Queue und füllt den Audio-Output-Buffer. Dadurch entsteht gapless Playback ohne hörbare Unterbrechungen.
 
-// NPC state
-NPCState currentState = npcController.CurrentState;
-bool isRecording = audioManager.IsRecording;
-```
+### LipSync Integration – Technische Details
+
+- **Fallback-LipSync (ReadyPlayerMeLipSync):**
+  - Wird automatisch auf dem Avatar aktiviert, wenn kein uLipSync gefunden wird.
+  - Ruft im `Update()`-Loop pro Frame die Methode `AnalyzeAudio()` auf.
+  - Diese Methode liest die aktuellen Audiodaten direkt aus dem Playback-AudioSource (`GetOutputData` und `GetSpectrumData`).
+  - Die Lautstärke- und ggf. Formant-Analyse steuert die BlendShapes für Mundbewegungen.
+
+- **uLipSync (wenn installiert):**
+  - Nutzt Unitys `OnAudioFilterRead()`-Callback, der ebenfalls auf dem Audio-Thread läuft.
+  - Analysiert das gleiche Audiosignal, das auch für das Playback verwendet wird.
+  - Liefert Phonem-Events, die auf den Avatar gemappt werden.
+  - **Wichtig:** Ist uLipSync installiert, wird die Fallback-Komponente (`ReadyPlayerMeLipSync`) nicht hinzugefügt und deren `Update()`/`AnalyzeAudio()` wird nicht ausgeführt. Es gibt keine Interferenz zwischen den Systemen – immer nur eine LipSync-Komponente ist aktiv.
+
+### Threading & Performance
+
+- **Audio Playback:**
+  - Das eigentliche Audio-Playback (OnAudioRead) läuft auf Unitys dediziertem Audio-Thread.
+  - Die Queue-Architektur sorgt dafür, dass keine Race-Conditions oder Buffer-Underruns auftreten.
+
+- **LipSync (Fallback):**
+  - Die Analyse (`AnalyzeAudio()`) läuft im normalen Unity-Update-Thread (Main Thread).
+  - Sie liest nur die aktuellen Samples aus dem Playback-AudioSource (kein Eingriff in die Queue oder das Playback selbst).
+  - Die Berechnung (RMS, ggf. FFT) ist sehr leichtgewichtig und hat keinen messbaren Einfluss auf die Audio-Performance.
+
+- **uLipSync:**
+  - Arbeitet direkt auf dem Audio-Thread, aber nur lesend/analysierend.
+  - Die eigentliche Audioausgabe bleibt davon unbeeinflusst.
+
+### Kann LipSync das Audio-Playback stören?
+
+- **Nein.**
+  - Die LipSync-Analyse liest nur die aktuellen Audiodaten, sie verändert oder verzögert das Playback nicht.
+  - Die Queue-Architektur und die Trennung von Audio-Thread und Main Thread verhindern, dass BlendShape-Updates oder Analyse das Audio-Streaming beeinflussen.
+  - Auch bei sehr vielen BlendShapes oder hoher Update-Rate bleibt das Playback gapless.
+
+### Fazit
+
+- Die LipSync-Integration ist vollständig thread-sicher und beeinflusst die Audio-Pipeline in keiner Weise negativ.
+- Die Architektur ist so ausgelegt, dass Audio-Playback und Mundanimation unabhängig voneinander performant und stabil laufen.
+- Auch bei komplexen Szenen oder vielen NPCs bleibt die Audioqualität erhalten.
 
 ---
 
+*Letztes Review: 2025-06-29 – Systemarchitektur und Performance bestätigt.*
+
+---
+
+## 🛠️ Automatisiertes Setup-System: Orchestrator & StepScripts
+
+### Überblick
+
+Das Setup-System ist modular aufgebaut und besteht aus einem zentralen Orchestrator (SetupScript/Utility) und einer Reihe von StepScripts, die jeweils für einen klar abgegrenzten Teil der Einrichtung zuständig sind. Dieses Design ermöglicht eine flexible, erweiterbare und fehlertolerante Automatisierung der gesamten NPC- und Systemkonfiguration.
+
+### Komponenten
+
+- **Orchestrator (z.B. `OpenAINPCSetupUtility`)**
+  - Steuert den gesamten Setup-Prozess als "State Machine" oder Pipeline.
+  - Ruft die einzelnen StepScripts in definierter Reihenfolge auf.
+  - Übernimmt Logging, Fehlerbehandlung und das Weiterreichen von Kontext (z.B. Avatar, Settings, UI-Objekte).
+  - Kann aus dem Editor (MenuItem) oder per Code aufgerufen werden.
+
+- **StepScripts (z.B. `FindOrValidateAssetsStep`, `CreateUISystemStep`, `SetupLipSyncSystemStep`, ...)**
+  - Kapseln jeweils einen logischen Setup-Schritt (z.B. Avatar finden, UI erstellen, Audio konfigurieren, LipSync einrichten).
+  - Haben klar definierte Ein- und Ausgaben (z.B. GameObject, Settings, Rückgabewerte).
+  - Können unabhängig getestet, erweitert oder ausgetauscht werden.
+  - Jeder Step ist für seine eigene Fehlerbehandlung und Logging verantwortlich.
+
+### Ablauf (Beispiel)
+
+1. **Asset Discovery:**
+   - `FindOrValidateAssetsStep` sucht nach einem ReadyPlayerMe-Avatar und den OpenAISettings.
+2. **UI-System:**
+   - `CreateUISystemStep` erstellt Canvas, Panel und UI-Elemente gemäß Konfiguration.
+3. **NPC-System:**
+   - Erstellt das zentrale NPC-System-GameObject und fügt Kernkomponenten hinzu.
+4. **Audio-System:**
+   - Konfiguriert AudioSources, RealtimeAudioManager und deren Verbindungen.
+5. **LipSync-System:**
+   - `SetupLipSyncSystemStep` erkennt und konfiguriert das optimale LipSync-System (uLipSync oder Fallback).
+6. **Referenz-Verknüpfung:**
+   - `LinkReferencesStep` verbindet alle Komponenten und UI-Elemente miteinander.
+7. **Validierung:**
+   - Jeder Step prüft und loggt seinen Erfolg, der Orchestrator gibt eine Gesamtzusammenfassung aus.
+
+### Vorteile
+- **Modularität:** Jeder Step kann unabhängig angepasst oder erweitert werden.
+- **Wartbarkeit:** Fehler und Verbesserungen sind gezielt pro StepScript möglich.
+- **Transparenz:** Jeder Schritt loggt detailliert, was passiert ist und ob es Fehler gab.
+- **Erweiterbarkeit:** Neue Features (z.B. weitere UI-Elemente, alternative LipSync-Systeme) können als neue Steps ergänzt werden.
+
+### Beispiel-Code (Orchestrator)
+```csharp
+// Auszug aus OpenAINPCSetupUtility
+public static void ExecuteFullSetup(...) {
+    // Step 1: Asset Discovery
+    var assetStep = new FindOrValidateAssetsStep(...);
+    assetStep.Execute().MoveNext();
+    // Step 2: UI-System
+    var uiStep = new CreateUISystemStep();
+    uiStep.Execute(...);
+    // ...weitere Steps...
+    // Step N: LipSync
+    var lipSyncStep = new SetupLipSyncSystemStep(...);
+    lipSyncStep.Execute(...);
+    // ...
+}
+```
+---
+### uLipSync – Funktionsweise, Profil und BlendShape-Mapping
+
+**uLipSync** ist ein Open-Source-LipSync-System, das auf Phonemerkennung basiert und speziell für Echtzeit-Sprachanimation in Unity entwickelt wurde.
+
+#### Wie funktioniert uLipSync?
+- uLipSync analysiert das Audiosignal in Echtzeit auf dem Audio-Thread (über `OnAudioFilterRead`).
+- Es vergleicht das Signal mit gespeicherten **Phoneme-Mustern** (MFCC-Templates) aus einem Profil.
+- Für jedes erkannte Phonem (z.B. A, I, U, E, O, N) wird ein Event ausgelöst.
+- Die zugehörige `uLipSyncBlendShape`-Komponente setzt dann die passenden BlendShapes am Avatar (z.B. `mouthOpen`, `mouthSmile`).
+- Die Werte werden als Float zwischen 0 und 1 gesetzt – das entspricht dem, was ReadyPlayerMe für realistische Mundanimation erwartet.
+
+#### Was ist ein uLipSync-Profil und warum ist es nötig?
+- Ein **Profil** enthält für jedes Phonem ein akustisches Muster (MFCC), das als Referenz für die Spracherkennung dient.
+- Ohne Profil kann uLipSync keine Sprache erkennen und keine Mundanimation erzeugen.
+- Das Standardprofil (`uLipSync-Profile-Sample`) deckt die wichtigsten Laute ab und funktioniert für viele Stimmen direkt.
+- Für beste Ergebnisse kann ein eigenes Profil kalibriert werden (siehe uLipSync-Dokumentation).
+
+#### Automatische Einrichtung durch das Setup-Skript
+- Das Setup-Skript übernimmt folgende Schritte:
+  1. Weist der uLipSync-Komponente auf der PlaybackAudioSource automatisch das Standardprofil zu.
+  2. Verbindet das Event „On LipSync Update“ mit der Methode `uLipSyncBlendShape.OnLipSyncUpdate` auf dem Avatar.
+  3. Setzt im `uLipSyncBlendShape`-Script den richtigen SkinnedMeshRenderer (z.B. `Renderer_Head`).
+  4. Legt für jedes Phonem die BlendShape-Regeln an (z.B. A → mouthOpen, I → mouthSmile) und setzt „Max Blend Shape Value“ auf 1.
+
+**Hinweis:**
+- Die automatische Einrichtung deckt alle nötigen Schritte ab. Für individuelle Anpassungen (z.B. andere BlendShapes oder eigene Profile) kann die Konfiguration im Inspector nachträglich angepasst werden.
+- Die Phoneme und BlendShape-Regeln sind so gewählt, dass sie mit ReadyPlayerMe-Avataren direkt realistische Mundbewegungen erzeugen.
+
+---
 **This technical documentation reflects our journey from choppy audio to production-ready gapless streaming. Every optimization and pattern here was learned through real implementation challenges.** 🎯
 
 *For setup instructions, see [SETUP.md](SETUP.md)*

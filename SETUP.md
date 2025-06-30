@@ -316,3 +316,65 @@ Error Message: [Full console output]
 
 *For technical details, see [TECHNICAL.md](TECHNICAL.md)*  
 *For project overview, see [README.md](README.md)*
+
+---
+
+## 🗣️ Optional: Professionelles LipSync mit uLipSync
+
+**uLipSync** ist ein Open-Source, hochqualitatives LipSync-System für Unity, das perfekt mit diesem Projekt funktioniert.
+
+### Installation von uLipSync
+
+1. **Unity öffnen** (Projekt geladen)
+2. Menü: **Window → Package Manager**
+3. Oben rechts: **+** → **Add package from Git URL...**
+4. URL eingeben:
+   ```
+   https://github.com/hecomi/uLipSync.git#upm
+   ```
+5. **Add** klicken und Installation abwarten
+6. Nach der Installation: **Setup-Script erneut ausführen** (OpenAI NPC → Quick Setup)
+
+**Hinweis:**
+- Das Setup-Script erkennt uLipSync automatisch und konfiguriert es als bevorzugtes LipSync-System.
+- Ist uLipSync nicht installiert, wird automatisch das Fallback-System aktiviert.
+- Für beste Ergebnisse: uLipSync BlendShape-Mapping im Inspector prüfen und ggf. anpassen.
+
+**Weitere Infos:**
+- [uLipSync GitHub](https://github.com/hecomi/uLipSync)
+- [uLipSync Dokumentation](https://github.com/hecomi/uLipSync#readme)
+
+---
+
+## 🗣️ Professionelles LipSync mit uLipSync – Automatische Einrichtung & Hintergrund
+
+Ab Version X.X wird uLipSync vollständig automatisch durch das Setup-Skript konfiguriert. Die folgenden Schritte werden dabei ausgeführt und sind für das Verständnis und die Fehlersuche wichtig:
+
+### Was passiert automatisch?
+
+1. **uLipSync-Profil wird zugewiesen**
+   - Das Skript weist der `uLipSync`-Komponente auf der PlaybackAudioSource automatisch das Standardprofil `uLipSync-Profile-Sample` zu (Pfad: `Library/PackageCache/com.hecomi.ulipsync.../Assets/Profiles`).
+   - **Warum ist das wichtig?**
+     - Das Profil enthält sogenannte **Phoneme** (Laute wie A, I, U, E, O, N), die als akustische Muster (MFCC-Templates) gespeichert sind.
+     - uLipSync vergleicht das eingehende Audiosignal mit diesen Mustern, erkennt so gesprochene Laute und kann daraus Mundbewegungen ableiten.
+     - Ohne Profil kann uLipSync keine Sprache erkennen und keine Mundanimation erzeugen.
+
+2. **On LipSync Update-Event wird verbunden**
+   - Das Skript verbindet das Event „On LipSync Update (LipSyncInfo)“ der `uLipSync`-Komponente automatisch mit der Methode `uLipSyncBlendShape.OnLipSyncUpdate` auf dem Avatar (z.B. `PreviewAvatar`).
+   - Dadurch werden erkannte Phoneme direkt an die BlendShape-Steuerung des Avatars weitergegeben.
+
+3. **uLipSyncBlendShape wird konfiguriert**
+   - Das Skript setzt im `uLipSyncBlendShape`-Script auf dem Avatar automatisch den richtigen SkinnedMeshRenderer (z.B. `Renderer_Head`).
+   - Unter „Blend Shapes“ werden für jedes Phonem Regeln erstellt, welches BlendShape wie animiert wird (z.B. A → mouthOpen, I → mouthSmile).
+   - Der Wert „Max Blend Shape Value“ wird auf **1** gesetzt, damit die BlendShapes im Bereich 0–1 animiert werden (wie von ReadyPlayerMe erwartet).
+
+### Was sind Phoneme und wie funktioniert das?
+- **Phoneme** sind die kleinsten bedeutungsunterscheidenden Laute einer Sprache (z.B. A, I, U, E, O, N).
+- Das uLipSync-Profil enthält für jedes Phonem ein akustisches Muster (MFCC), das beim Sprechen erkannt wird.
+- uLipSync analysiert das Audiosignal in Echtzeit, erkennt die Phoneme und löst für jedes erkannte Phonem ein Event aus.
+- Die `uLipSyncBlendShape`-Komponente setzt dann die zugehörigen BlendShapes (z.B. `mouthOpen`, `mouthSmile`) mit Werten zwischen 0 und 1, sodass die Mundbewegung des Avatars synchron zur Sprache animiert wird.
+
+**Hinweis:**
+- Die automatische Einrichtung deckt alle nötigen Schritte ab. Für individuelle Anpassungen (z.B. andere BlendShapes oder eigene Profile) kann die Konfiguration im Inspector nachträglich angepasst werden.
+
+---

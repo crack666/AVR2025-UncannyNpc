@@ -651,7 +651,7 @@ namespace OpenAI.RealtimeAPI
                         buffer = currentStreamWriteBuffer.buffer;
                         offset = 0;
                         
-                        Log($"[GAPLESS] Buffer enqueued. Total buffers: {streamOutputBuffers.Count}");
+                        //Log($"[GAPLESS] Buffer enqueued. Total buffers: {streamOutputBuffers.Count}");
                     }
                 }
                 
@@ -688,7 +688,7 @@ namespace OpenAI.RealtimeAPI
             
             WriteAudioDataToStream(float32Array, trackId);
             
-            Log($"[GAPLESS] Added {sampleCount} samples to stream. Track: {trackId}");
+            //Log($"[GAPLESS] Added {sampleCount} samples to stream. Track: {trackId}");
         }
         
         /// <summary>
@@ -887,7 +887,7 @@ namespace OpenAI.RealtimeAPI
             // REMOVED: This blocking causes lost audio samples
             // Allow buffer processing even during response
             
-            Debug.Log($"[RealtimeAudioManager] AddToBuffer called with {samples.Length} samples. BufferPos: {bufferPosition}/{microphoneBuffer.Length}");
+            //Debug.Log($"[RealtimeAudioManager] AddToBuffer called with {samples.Length} samples. BufferPos: {bufferPosition}/{microphoneBuffer.Length}");
             
             for (int i = 0; i < samples.Length; i++)
             {
