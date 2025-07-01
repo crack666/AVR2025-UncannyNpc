@@ -7,13 +7,13 @@ namespace Setup.Steps
     {
         private System.Action<string> log;
         public LinkReferencesStep(System.Action<string> log) { this.log = log; }
-        public IEnumerator Execute(GameObject npcSystem, GameObject uiPanel, GameObject targetAvatar, ScriptableObject openAISettings)
+        public void ExecuteSync(GameObject npcSystem, GameObject uiPanel, GameObject targetAvatar, ScriptableObject openAISettings)
         {
             log("🔗 Step 6: Linking All Component References");
             if (npcSystem == null || uiPanel == null)
             {
                 log("❌ Cannot link references - missing core objects");
-                yield break;
+                return;
             }
             MonoBehaviour realtimeClient = npcSystem.GetComponent("RealtimeClient") as MonoBehaviour;
             MonoBehaviour audioManager = npcSystem.GetComponent("RealtimeAudioManager") as MonoBehaviour;
@@ -73,7 +73,14 @@ namespace Setup.Steps
                 }
             }
             log("✅ All component references linked successfully");
-            yield return null;
+        }
+
+        // [Optional] Keep for compatibility, but mark as obsolete
+        [System.Obsolete("Use ExecuteSync instead. Coroutines are not supported in Editor setup.")]
+        public System.Collections.IEnumerator Execute(GameObject npcSystem, GameObject uiPanel, GameObject targetAvatar, ScriptableObject openAISettings)
+        {
+            ExecuteSync(npcSystem, uiPanel, targetAvatar, openAISettings);
+            yield break;
         }
     }
 }

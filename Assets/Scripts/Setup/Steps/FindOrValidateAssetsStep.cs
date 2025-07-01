@@ -38,7 +38,7 @@ namespace Setup.Steps
             }
         }
 
-        public IEnumerator Execute()
+        public void ExecuteSync()
         {
             log("📋 Step 1: Asset Discovery and Validation");
             if (openAISettings == null)
@@ -65,7 +65,14 @@ namespace Setup.Steps
                 log("❌ No ReadyPlayerMe avatar found in scene");
                 log("   → Import a ReadyPlayerMe avatar (.glb) first");
             }
-            yield return null;
+        }
+
+        // [Optional] Keep for compatibility, but mark as obsolete
+        [System.Obsolete("Use ExecuteSync instead. Coroutines are not supported in Editor setup.")]
+        public System.Collections.IEnumerator Execute()
+        {
+            ExecuteSync();
+            yield break;
         }
 
         private GameObject FindReadyPlayerMeAvatar()

@@ -21,16 +21,17 @@ namespace Setup
 
             // Step 1: Asset Discovery
             var assetStep = new FindOrValidateAssetsStep(openAISettings, targetAvatar, logAction);
-            assetStep.Execute().MoveNext();
+            assetStep.ExecuteSync();
             openAISettings = assetStep.OpenAISettings;
             targetAvatar = assetStep.TargetAvatar;
             bool avatarFound = assetStep.AvatarFound;
 
             // Step 2: UI System (Canvas + Panel)
-            var uiStep = new CreateUISystemStep();
-            uiStep.Execute(uiPanelSize, uiPanelPosition);
-            var uiCanvas = uiStep.Canvas;
-            // Panel: uiStep.Panel
+            var uiStep = new CreateUISystemStep(logAction);
+            uiStep.ExecuteSync(uiPanelSize, uiPanelPosition, "ScreenSpaceOverlay", null, 0.01f);
+            // Canvas und Panel werden jetzt per GameObject.Find gesucht
+            var uiCanvas = GameObject.Find("Canvas")?.GetComponent<Canvas>();
+            var uiPanel = GameObject.Find("NPC UI Panel");
 
             // Step 3: NPC System Core Setup
             GameObject npcSystem = GameObject.Find("OpenAI NPC System");
@@ -59,31 +60,25 @@ namespace Setup
 
             // Step 4: Audio System
             var audioStep = new ConfigureAudioSystemStep(logAction);
-            var audioCoroutine = audioStep.Execute(npcSystem);
-            while (audioCoroutine.MoveNext()) { } // Execute complete coroutine
+            audioStep.ExecuteSync(npcSystem);
 
             // Step 5: LipSync System
             var lipSyncStep = new SetupLipSyncSystemStep(logAction);
-            var lipSyncCoroutine = lipSyncStep.Execute(targetAvatar, npcSystem);
-            while (lipSyncCoroutine.MoveNext()) { } // Execute complete coroutine
+            lipSyncStep.ExecuteSync(targetAvatar, npcSystem);
 
             // Step 6: References Linking
             var linkStep = new LinkReferencesStep(logAction);
-            var linkCoroutine = linkStep.Execute(npcSystem, uiStep.Panel, targetAvatar, openAISettings);
-            while (linkCoroutine.MoveNext()) { } // Execute complete coroutine
+            linkStep.ExecuteSync(npcSystem, uiPanel, targetAvatar, openAISettings);
 
             // Step 7: Final Validation
             bool allValid = true;
             if (npcSystem?.GetComponent("RealtimeClient") == null) allValid = false;
             if (npcSystem?.GetComponent("RealtimeAudioManager") == null) allValid = false;
             if (npcSystem?.GetComponent("NPCController") == null) allValid = false;
-            
             // Check for uLipSync first, then fallback
             bool hasLipSync = targetAvatar?.GetComponent("uLipSync.uLipSyncBlendShape") != null ||
                              targetAvatar?.GetComponent("ReadyPlayerMeLipSync") != null;
             if (!hasLipSync) allValid = false;
-            
-            var uiPanel = GameObject.Find("NPC UI Panel");
             if (uiPanel?.GetComponent("NpcUiManager") == null) allValid = false;
 
             logAction?.Invoke("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -139,16 +134,16 @@ namespace Setup
 
             // Step 1: Asset Discovery
             var assetStep = new FindOrValidateAssetsStep(openAISettings, targetAvatar, logAction);
-            assetStep.Execute().MoveNext();
+            assetStep.ExecuteSync();
             openAISettings = assetStep.OpenAISettings;
             targetAvatar = assetStep.TargetAvatar;
             bool avatarFound = assetStep.AvatarFound;
 
             // Step 2: UI System (Canvas + Panel)
-            var uiStep = new CreateUISystemStep();
-            uiStep.Execute(uiPanelSize, uiPanelPosition, canvasMode, camera, worldCanvasScale);
-            var uiCanvas = uiStep.Canvas;
-            // Panel: uiStep.Panel
+            var uiStep = new CreateUISystemStep(logAction);
+            uiStep.ExecuteSync(uiPanelSize, uiPanelPosition, canvasMode, camera, worldCanvasScale);
+            var uiCanvas = GameObject.Find("Canvas")?.GetComponent<Canvas>();
+            var uiPanel = GameObject.Find("NPC UI Panel");
 
             // Step 3: NPC System Core Setup
             GameObject npcSystem = GameObject.Find("OpenAI NPC System");
@@ -177,31 +172,25 @@ namespace Setup
 
             // Step 4: Audio System
             var audioStep = new ConfigureAudioSystemStep(logAction);
-            var audioCoroutine = audioStep.Execute(npcSystem);
-            while (audioCoroutine.MoveNext()) { } // Execute complete coroutine
+            audioStep.ExecuteSync(npcSystem);
 
             // Step 5: LipSync System
             var lipSyncStep = new SetupLipSyncSystemStep(logAction);
-            var lipSyncCoroutine = lipSyncStep.Execute(targetAvatar, npcSystem);
-            while (lipSyncCoroutine.MoveNext()) { } // Execute complete coroutine
+            lipSyncStep.ExecuteSync(targetAvatar, npcSystem);
 
             // Step 6: References Linking
             var linkStep = new LinkReferencesStep(logAction);
-            var linkCoroutine = linkStep.Execute(npcSystem, uiStep.Panel, targetAvatar, openAISettings);
-            while (linkCoroutine.MoveNext()) { } // Execute complete coroutine
+            linkStep.ExecuteSync(npcSystem, uiPanel, targetAvatar, openAISettings);
 
             // Step 7: Final Validation
             bool allValid = true;
             if (npcSystem?.GetComponent("RealtimeClient") == null) allValid = false;
             if (npcSystem?.GetComponent("RealtimeAudioManager") == null) allValid = false;
             if (npcSystem?.GetComponent("NPCController") == null) allValid = false;
-            
             // Check for uLipSync first, then fallback
             bool hasLipSync = targetAvatar?.GetComponent("uLipSync.uLipSyncBlendShape") != null ||
                              targetAvatar?.GetComponent("ReadyPlayerMeLipSync") != null;
             if (!hasLipSync) allValid = false;
-            
-            var uiPanel = GameObject.Find("NPC UI Panel");
             if (uiPanel?.GetComponent("NpcUiManager") == null) allValid = false;
 
             logAction?.Invoke("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
