@@ -179,4 +179,21 @@ If this project helps you create amazing NPCs, please:
 
 ---
 
+## 📅 **Recent Updates**
+
+### **v2.1 - Voice System Refactoring (July 2025)**
+- ✅ **Enhanced Voice Selection** - UI now shows descriptive names with gender indicators
+- ✅ **Modular OpenAIVoice System** - Better maintainability and type safety  
+- ✅ **Robust Voice Serialization** - Fixed compilation errors and improved data persistence
+- ✅ **Improved UI Descriptions** - Voice dropdown shows: "Alloy (neutral): Balanced, warm voice"
+- ✅ **Runtime Voice Switching** - Seamless voice changes during gameplay
+
+**Technical Improvements:**
+- Refactored `OpenAIVoice` enum into dedicated file with extension methods
+- Switched from enum to int-based voice index for reliable serialization
+- Added automatic validation and fallback for invalid voice settings
+- Enhanced error handling and user feedback
+
+---
+
 **Ready to bring your NPCs to life? [Get started now!](SETUP.md)** 🚀

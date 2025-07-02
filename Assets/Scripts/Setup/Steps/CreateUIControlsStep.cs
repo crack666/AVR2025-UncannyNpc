@@ -30,8 +30,11 @@ namespace Setup.Steps
             CreateVoiceDropdown();
             CreateVolumeSlider();
             CreateEnableVADToggle();
+            
+            // Setup Event Listeners für die neuen Controls
+            SetupControlEventListeners();
 
-            log("✅ All UI controls created.");
+            log("✅ All UI controls created and event listeners setup.");
         }
 
         private void CreateVoiceDropdown()
@@ -44,14 +47,144 @@ namespace Setup.Steps
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
+            // Background
+            var backgroundGO = new GameObject("Background", typeof(RectTransform));
+            backgroundGO.transform.SetParent(dropdownGO.transform, false);
+            var bgRect = backgroundGO.GetComponent<RectTransform>();
+            bgRect.anchorMin = Vector2.zero;
+            bgRect.anchorMax = Vector2.one;
+            bgRect.offsetMin = Vector2.zero;
+            bgRect.offsetMax = Vector2.zero;
+            var bgImage = backgroundGO.AddComponent<Image>();
+            bgImage.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+
+            // TMP_Dropdown
             var dropdown = dropdownGO.AddComponent<TMP_Dropdown>();
+            dropdown.targetGraphic = bgImage;
 
-            // Create default UI elements for the dropdown
-            CreateDropdownTemplate(dropdown);
+            // Label
+            var labelGO = new GameObject("Label", typeof(RectTransform));
+            labelGO.transform.SetParent(dropdownGO.transform, false);
+            var labelRect = labelGO.GetComponent<RectTransform>();
+            labelRect.anchorMin = new Vector2(0, 0);
+            labelRect.anchorMax = new Vector2(1, 1);
+            labelRect.offsetMin = new Vector2(10, 0);
+            labelRect.offsetMax = new Vector2(-25, 0);
+            var label = labelGO.AddComponent<TextMeshProUGUI>();
+            label.text = "Voice: alloy";
+            label.fontSize = 14;
+            label.alignment = TextAlignmentOptions.Left;
+            label.color = Color.white;
+            dropdown.captionText = label;
 
+            // Arrow
+            var arrowGO = new GameObject("Arrow", typeof(RectTransform));
+            arrowGO.transform.SetParent(dropdownGO.transform, false);
+            var arrowRect = arrowGO.GetComponent<RectTransform>();
+            arrowRect.anchorMin = new Vector2(1, 0.5f);
+            arrowRect.anchorMax = new Vector2(1, 0.5f);
+            arrowRect.sizeDelta = new Vector2(20, 20);
+            arrowRect.anchoredPosition = new Vector2(-15, 0);
+            var arrowImage = arrowGO.AddComponent<Image>();
+            arrowImage.color = Color.white;
+
+            // Template
+            var templateGO = new GameObject("Template", typeof(RectTransform));
+            templateGO.transform.SetParent(dropdownGO.transform, false);
+            templateGO.SetActive(false);
+            var templateRect = templateGO.GetComponent<RectTransform>();
+            templateRect.anchorMin = new Vector2(0, 0);
+            templateRect.anchorMax = new Vector2(1, 0);
+            templateRect.pivot = new Vector2(0.5f, 1);
+            templateRect.sizeDelta = new Vector2(0, 240); // Erhöht von 120 auf 240 für alle 8 Voices (8 * 30px = 240px)
+            var templateImage = templateGO.AddComponent<Image>();
+            templateImage.color = new Color(0.15f, 0.15f, 0.15f, 0.98f);
+
+            // Viewport
+            var viewportGO = new GameObject("Viewport", typeof(RectTransform));
+            viewportGO.transform.SetParent(templateGO.transform, false);
+            var viewportRect = viewportGO.GetComponent<RectTransform>();
+            viewportRect.anchorMin = Vector2.zero;
+            viewportRect.anchorMax = Vector2.one;
+            viewportRect.offsetMin = Vector2.zero;
+            viewportRect.offsetMax = Vector2.zero;
+            var viewportMask = viewportGO.AddComponent<Mask>();
+            viewportMask.showMaskGraphic = false;
+            var viewportImage = viewportGO.AddComponent<Image>();
+            viewportImage.color = new Color(1, 1, 1, 0.01f);
+
+            // Content
+            var contentGO = new GameObject("Content", typeof(RectTransform));
+            contentGO.transform.SetParent(viewportGO.transform, false);
+            var contentRect = contentGO.GetComponent<RectTransform>();
+            contentRect.anchorMin = new Vector2(0, 1);
+            contentRect.anchorMax = new Vector2(1, 1);
+            contentRect.pivot = new Vector2(0.5f, 1);
+            contentRect.anchoredPosition = Vector2.zero;
+            contentRect.sizeDelta = new Vector2(0, 240); // Angepasst an Template-Höhe
+
+            // Item (Option)
+            var itemGO = new GameObject("Item", typeof(RectTransform));
+            itemGO.transform.SetParent(contentGO.transform, false);
+            var itemRect = itemGO.GetComponent<RectTransform>();
+            itemRect.anchorMin = new Vector2(0, 0.5f);
+            itemRect.anchorMax = new Vector2(1, 0.5f);
+            itemRect.sizeDelta = new Vector2(0, 30); // Erhöht von 28 auf 30 für bessere Lesbarkeit
+
+            // Toggle für Item
+            var toggle = itemGO.AddComponent<Toggle>();
+
+            // Item Background
+            var itemBGGO = new GameObject("Item Background", typeof(RectTransform));
+            itemBGGO.transform.SetParent(itemGO.transform, false);
+            var itemBGRect = itemBGGO.GetComponent<RectTransform>();
+            itemBGRect.anchorMin = Vector2.zero;
+            itemBGRect.anchorMax = Vector2.one;
+            itemBGRect.offsetMin = Vector2.zero;
+            itemBGRect.offsetMax = Vector2.zero;
+            var itemBGImage = itemBGGO.AddComponent<Image>();
+            itemBGImage.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+            toggle.targetGraphic = itemBGImage;
+
+            // Item Checkmark
+            var checkmarkGO = new GameObject("Item Checkmark", typeof(RectTransform));
+            checkmarkGO.transform.SetParent(itemGO.transform, false);
+            var checkmarkRect = checkmarkGO.GetComponent<RectTransform>();
+            checkmarkRect.anchorMin = new Vector2(0, 0.5f);
+            checkmarkRect.anchorMax = new Vector2(0, 0.5f);
+            checkmarkRect.sizeDelta = new Vector2(20, 20);
+            checkmarkRect.anchoredPosition = new Vector2(10, 0);
+            var checkmarkImage = checkmarkGO.AddComponent<Image>();
+            checkmarkImage.color = Color.green;
+            toggle.graphic = checkmarkImage;
+
+            // Item Label
+            var itemLabelGO = new GameObject("Item Label", typeof(RectTransform));
+            itemLabelGO.transform.SetParent(itemGO.transform, false);
+            var itemLabelRect = itemLabelGO.GetComponent<RectTransform>();
+            itemLabelRect.anchorMin = new Vector2(0, 0);
+            itemLabelRect.anchorMax = new Vector2(1, 1);
+            itemLabelRect.offsetMin = new Vector2(30, 0);
+            itemLabelRect.offsetMax = new Vector2(-10, 0);
+            var itemLabel = itemLabelGO.AddComponent<TextMeshProUGUI>();
+            itemLabel.text = "Option";
+            itemLabel.fontSize = 14;
+            itemLabel.alignment = TextAlignmentOptions.Left;
+            itemLabel.color = Color.white;
+
+            // Set Dropdown Template References
+            dropdown.template = templateRect;
+            dropdown.itemText = itemLabel;
+            dropdown.captionText = label;
+
+            // Optionen befüllen mit OpenAI Voice Enum
             var enumNames = System.Enum.GetNames(typeof(OpenAIVoice));
             dropdown.ClearOptions();
             dropdown.AddOptions(new List<string>(enumNames));
+            
+            // Setze korrekten Standardwert (alloy = Index 0)
+            dropdown.value = 0; // alloy ist das erste Element
+            dropdown.RefreshShownValue(); // Force UI Update
 
             VoiceDropdown = dropdown;
             log("✅ Created Voice Dropdown.");
@@ -67,18 +200,58 @@ namespace Setup.Steps
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
-            // Add default slider graphics
-            var bgImage = CreateImage(sliderGO, "Background", new Color(0.2f, 0.2f, 0.2f, 1f));
-            var fillArea = new GameObject("Fill Area", typeof(RectTransform));
-            fillArea.transform.SetParent(sliderGO.transform, false);
-            var fillImage = CreateImage(fillArea, "Fill", new Color(0.3f, 0.7f, 1f, 1f));
-            var handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
-            handleArea.transform.SetParent(sliderGO.transform, false);
-            var handleImage = CreateImage(handleArea, "Handle", Color.white);
+            // Background
+            var bgGO = new GameObject("Background", typeof(RectTransform));
+            bgGO.transform.SetParent(sliderGO.transform, false);
+            var bgRect = bgGO.GetComponent<RectTransform>();
+            bgRect.anchorMin = Vector2.zero;
+            bgRect.anchorMax = Vector2.one;
+            bgRect.offsetMin = Vector2.zero;
+            bgRect.offsetMax = Vector2.zero;
+            var bgImage = bgGO.AddComponent<Image>();
+            bgImage.color = new Color(0.2f, 0.2f, 0.2f, 1f);
 
+            // Fill Area
+            var fillAreaGO = new GameObject("Fill Area", typeof(RectTransform));
+            fillAreaGO.transform.SetParent(sliderGO.transform, false);
+            var fillAreaRect = fillAreaGO.GetComponent<RectTransform>();
+            fillAreaRect.anchorMin = new Vector2(0f, 0.25f);
+            fillAreaRect.anchorMax = new Vector2(1f, 0.75f);
+            fillAreaRect.offsetMin = new Vector2(10, 0);
+            fillAreaRect.offsetMax = new Vector2(-10, 0);
+
+            // Fill
+            var fillGO = new GameObject("Fill", typeof(RectTransform));
+            fillGO.transform.SetParent(fillAreaGO.transform, false);
+            var fillRect = fillGO.GetComponent<RectTransform>();
+            fillRect.anchorMin = Vector2.zero;
+            fillRect.anchorMax = new Vector2(1, 1);
+            fillRect.offsetMin = Vector2.zero;
+            fillRect.offsetMax = Vector2.zero;
+            var fillImage = fillGO.AddComponent<Image>();
+            fillImage.color = new Color(0.3f, 0.7f, 1f, 1f);
+
+            // Handle Slide Area
+            var handleAreaGO = new GameObject("Handle Slide Area", typeof(RectTransform));
+            handleAreaGO.transform.SetParent(sliderGO.transform, false);
+            var handleAreaRect = handleAreaGO.GetComponent<RectTransform>();
+            handleAreaRect.anchorMin = Vector2.zero;
+            handleAreaRect.anchorMax = Vector2.one;
+            handleAreaRect.offsetMin = new Vector2(10, 0);
+            handleAreaRect.offsetMax = new Vector2(-10, 0);
+
+            // Handle
+            var handleGO = new GameObject("Handle", typeof(RectTransform));
+            handleGO.transform.SetParent(handleAreaGO.transform, false);
+            var handleRect = handleGO.GetComponent<RectTransform>();
+            handleRect.sizeDelta = new Vector2(20, 40);
+            var handleImage = handleGO.AddComponent<Image>();
+            handleImage.color = Color.white;
+
+            // Slider Component
             var slider = sliderGO.AddComponent<Slider>();
-            slider.fillRect = fillImage.rectTransform;
-            slider.handleRect = handleImage.rectTransform;
+            slider.fillRect = fillRect;
+            slider.handleRect = handleRect;
             slider.targetGraphic = handleImage;
             slider.direction = Slider.Direction.LeftToRight;
             slider.minValue = 0f;
@@ -99,76 +272,112 @@ namespace Setup.Steps
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
-            var toggle = toggleGO.AddComponent<Toggle>();
-            var bgImage = CreateImage(toggleGO, "Background", new Color(0.2f, 0.2f, 0.2f, 1f));
-            var checkmarkImage = CreateImage(bgImage.gameObject, "Checkmark", Color.green);
-            var label = CreateLabel(toggleGO, "Label", "Enable VAD");
+            // Background
+            var bgGO = new GameObject("Background", typeof(RectTransform));
+            bgGO.transform.SetParent(toggleGO.transform, false);
+            var bgRect = bgGO.GetComponent<RectTransform>();
+            bgRect.anchorMin = Vector2.zero;
+            bgRect.anchorMax = Vector2.one;
+            bgRect.offsetMin = Vector2.zero;
+            bgRect.offsetMax = Vector2.zero;
+            var bgImage = bgGO.AddComponent<Image>();
+            bgImage.color = new Color(0.2f, 0.2f, 0.2f, 1f); // Grauer Background statt grün
 
+            // Checkmark
+            var checkmarkGO = new GameObject("Checkmark", typeof(RectTransform));
+            checkmarkGO.transform.SetParent(bgGO.transform, false);
+            var checkmarkRect = checkmarkGO.GetComponent<RectTransform>();
+            checkmarkRect.anchorMin = new Vector2(0.2f, 0.2f);
+            checkmarkRect.anchorMax = new Vector2(0.8f, 0.8f);
+            checkmarkRect.offsetMin = Vector2.zero;
+            checkmarkRect.offsetMax = Vector2.zero;
+            var checkmarkImage = checkmarkGO.AddComponent<Image>();
+            checkmarkImage.color = new Color(0.2f, 0.8f, 0.2f, 1f); // Grünes Häkchen
+
+            // Label
+            var labelGO = new GameObject("Label", typeof(RectTransform));
+            labelGO.transform.SetParent(toggleGO.transform, false);
+            var labelRect = labelGO.GetComponent<RectTransform>();
+            labelRect.anchorMin = new Vector2(1.05f, 0);
+            labelRect.anchorMax = new Vector2(2f, 1);
+            labelRect.offsetMin = Vector2.zero;
+            labelRect.offsetMax = Vector2.zero;
+            var label = labelGO.AddComponent<TextMeshProUGUI>();
+            label.text = "Enable VAD";
+            label.fontSize = 14;
+            label.alignment = TextAlignmentOptions.Left;
+            label.color = Color.white;
+
+            // Toggle Component
+            var toggle = toggleGO.AddComponent<Toggle>();
             toggle.targetGraphic = bgImage;
             toggle.graphic = checkmarkImage;
-            toggle.isOn = true;
+            toggle.isOn = false; // Standardmäßig aus
 
             EnableVADToggle = toggle;
             log("✅ Created Enable VAD Toggle.");
         }
 
-        // Helper methods to reduce boilerplate
-        private Image CreateImage(GameObject parent, string name, Color color)
+        private void SetupControlEventListeners()
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent.transform, false);
-            var image = go.AddComponent<Image>();
-            image.color = color;
-            var rect = go.GetComponent<RectTransform>();
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
-            return image;
-        }
+            var uiManagerType = System.Type.GetType("Managers.NpcUiManager") ?? System.Type.GetType("NpcUiManager");
+            if (uiManagerType == null || panel == null) 
+            {
+                log("⚠️ Cannot setup event listeners - NpcUiManager type not found");
+                return;
+            }
 
-        private TextMeshProUGUI CreateLabel(GameObject parent, string name, string text)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent.transform, false);
-            var label = go.AddComponent<TextMeshProUGUI>();
-            label.text = text;
-            label.fontSize = 14;
-            label.color = Color.white;
-            label.alignment = TextAlignmentOptions.Left;
-            var rect = go.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(1.05f, 0);
-            rect.anchorMax = new Vector2(2f, 1);
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
-            return label;
-        }
+            var uiManager = panel.GetComponent(uiManagerType);
+            if (uiManager == null) 
+            {
+                log("⚠️ Cannot setup event listeners - NpcUiManager not found on panel");
+                return;
+            }
 
-        private void CreateDropdownTemplate(TMP_Dropdown dropdown)
-        {
-            // This is a simplified version of the template creation from the original script
-            // It creates the necessary hierarchy for a TMP_Dropdown to function.
-            var background = CreateImage(dropdown.gameObject, "Background", new Color(0.2f, 0.2f, 0.2f, 1f));
-            dropdown.targetGraphic = background;
+            // VAD Toggle Event
+            if (EnableVADToggle != null)
+            {
+                var vadMethod = uiManagerType.GetMethod("OnVADToggleChanged", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                if (vadMethod != null)
+                {
+                    EnableVADToggle.onValueChanged.AddListener((bool value) => vadMethod.Invoke(uiManager, new object[] { value }));
+                    log("✅ VAD Toggle event listener added.");
+                }
+                else
+                {
+                    log("⚠️ OnVADToggleChanged method not found in NpcUiManager");
+                }
+            }
 
-            var label = CreateLabel(dropdown.gameObject, "Label", "Voice");
-            dropdown.captionText = label;
+            // Volume Slider Event
+            if (VolumeSlider != null)
+            {
+                var volumeMethod = uiManagerType.GetMethod("OnVolumeChanged", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                if (volumeMethod != null)
+                {
+                    VolumeSlider.onValueChanged.AddListener((float value) => volumeMethod.Invoke(uiManager, new object[] { value }));
+                    log("✅ Volume Slider event listener added.");
+                }
+                else
+                {
+                    log("⚠️ OnVolumeChanged method not found in NpcUiManager");
+                }
+            }
 
-            var template = new GameObject("Template", typeof(RectTransform), typeof(ScrollRect));
-            template.transform.SetParent(dropdown.transform, false);
-            dropdown.template = template.GetComponent<RectTransform>();
-            template.SetActive(false);
-
-            var viewport = new GameObject("Viewport", typeof(RectTransform), typeof(Mask), typeof(Image));
-            viewport.transform.SetParent(template.transform, false);
-
-            var content = new GameObject("Content", typeof(RectTransform));
-            content.transform.SetParent(viewport.transform, false);
-
-            var item = new GameObject("Item", typeof(RectTransform), typeof(Toggle));
-            item.transform.SetParent(content.transform, false);
-            var itemLabel = CreateLabel(item, "Item Label", "Option");
-            dropdown.itemText = itemLabel;
+            // Voice Dropdown Event
+            if (VoiceDropdown != null)
+            {
+                var voiceMethod = uiManagerType.GetMethod("OnVoiceDropdownChanged", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                if (voiceMethod != null)
+                {
+                    VoiceDropdown.onValueChanged.AddListener((int value) => voiceMethod.Invoke(uiManager, new object[] { value }));
+                    log("✅ Voice Dropdown event listener added.");
+                }
+                else
+                {
+                    log("⚠️ OnVoiceDropdownChanged method not found in NpcUiManager");
+                }
+            }
         }
     }
 }

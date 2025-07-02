@@ -401,9 +401,9 @@ namespace Setup.Steps
                         UnityEditor.AssetDatabase.SaveAssets();
                         UnityEditor.AssetDatabase.Refresh();
                         
-                        // SUPER-KRITISCH: Scene speichern damit FileIDs persistent sind!
-                        UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
-                        log("[DEBUG] Scene saved to persist FileID references!");
+                        // AUSKOMMENTIERT: Automatisches Scene-Speichern (kann auf Wunsch reaktiviert werden)
+                        // UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
+                        // log("[DEBUG] Scene saved to persist FileID references!");
                         
                         log("✅ KRITISCH: Added PERSISTENT listener via SerializedObject (GUARANTEED to work!)");
                         log("[DEBUG] Set to RuntimeOnly mode - exactly like manual setup!");
@@ -684,8 +684,10 @@ namespace Setup.Steps
                         UnityEditor.EditorUtility.SetDirty(uLipSyncComponent);
                         UnityEditor.AssetDatabase.SaveAssets();
                         UnityEditor.AssetDatabase.Refresh();
-                        UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
-                        log("[DEBUG] Scene saved to persist FileID references!");
+                        
+                        // AUSKOMMENTIERT: Automatisches Scene-Speichern (kann auf Wunsch reaktiviert werden)
+                        // UnityEditor.SceneManagement.EditorSceneManager.SaveOpenScenes();
+                        // log("[DEBUG] Scene saved to persist FileID references!");
                         
                         log("✅ KRITISCH: Added PERSISTENT listener via SerializedObject (GUARANTEED to work!)");
                         log("[DEBUG] Set to RuntimeOnly mode - exactly like manual setup!");

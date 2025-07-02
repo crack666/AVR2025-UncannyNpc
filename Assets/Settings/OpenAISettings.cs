@@ -18,7 +18,7 @@ public class OpenAISettings : ScriptableObject
     [SerializeField] private float microphoneVolume = 1.0f;
     
     [Header("Voice Settings")]
-    [SerializeField] private OpenAIVoice voice = OpenAIVoice.alloy;
+    [SerializeField] private int voiceIndex = 0; // Index statt Enum für bessere Kompatibilität
     [SerializeField] private float temperature = 0.8f;
     
     [Header("Conversation Settings")]
@@ -35,7 +35,23 @@ public class OpenAISettings : ScriptableObject
     public int SampleRate => sampleRate;
     public int AudioChunkSizeMs => audioChunkSizeMs;
     public float MicrophoneVolume => microphoneVolume;
-    public OpenAIVoice Voice => voice;
+    public int VoiceIndex 
+    { 
+        get 
+        {
+            // Validiere Voice-Index und setze auf Default falls ungültig
+            if (voiceIndex < 0 || voiceIndex >= 8) // 8 verfügbare Voices (0-7)
+            {
+                Debug.LogWarning($"[OpenAISettings] Invalid voice index detected: {voiceIndex}. Resetting to 0 (alloy).");
+                voiceIndex = 0; // alloy
+#if UNITY_EDITOR
+                UnityEditor.EditorUtility.SetDirty(this);
+#endif
+            }
+            return voiceIndex;
+        }
+    }
+    
     public float Temperature => temperature;
     public string SystemPrompt => systemPrompt;
     public bool EnableDebugLogging => enableDebugLogging;
@@ -71,19 +87,4 @@ public class OpenAISettings : ScriptableObject
         temperature = Mathf.Clamp01(temperature);
     }
     #endif
-}
-
-public enum OpenAIVoice
-{
-    alloy,
-    echo,
-    fable, // falls unterstützt, sonst entfernen
-    onyx,  // falls unterstützt, sonst entfernen
-    nova,  // falls unterstützt, sonst entfernen
-    shimmer,
-    ash,
-    ballad,
-    coral,
-    sage,
-    verse
 }

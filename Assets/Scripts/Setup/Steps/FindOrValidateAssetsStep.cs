@@ -47,7 +47,27 @@ namespace Setup.Steps
                 if (openAISettings == null)
                 {
                     log("⚠️ OpenAISettings not found in Resources folder");
-                    log("   → Create: Assets/Resources/OpenAISettings.asset");
+                    log("   → Attempting to create OpenAISettings.asset automatically...");
+                    
+                    // Direkte Erstellung der OpenAISettings
+                    openAISettings = CreateOpenAISettingsDirectly();
+                    
+                    if (openAISettings != null)
+                    {
+                        log("✅ OpenAISettings.asset created successfully!");
+                        log("   → Location: Assets/Resources/OpenAISettings.asset");
+                        log("   → Don't forget to set your API key in the Inspector");
+                    }
+                    else
+                    {
+                        log("❌ Failed to create OpenAISettings.asset automatically");
+                        log("   → Manual creation required: Assets/Resources/OpenAISettings.asset");
+                        log("   → Right-click in Resources folder → Create → OpenAI → Settings");
+                    }
+                }
+                else
+                {
+                    log("✅ OpenAISettings found in Resources folder");
                 }
             }
             if (targetAvatar == null)
@@ -92,6 +112,66 @@ namespace Setup.Steps
                 }
             }
             return null;
+        }
+
+        /// <summary>
+        /// Alternative method to create OpenAISettings directly without external dependency
+        /// </summary>
+        private ScriptableObject CreateOpenAISettingsDirectly()
+        {
+#if UNITY_EDITOR
+            // Prüfe ob Resources Ordner existiert
+            if (!UnityEditor.AssetDatabase.IsValidFolder("Assets/Resources"))
+            {
+                UnityEditor.AssetDatabase.CreateFolder("Assets", "Resources");
+                log("📁 Created Resources folder");
+            }
+
+            // Finde OpenAISettings Type
+            var openAISettingsType = System.Type.GetType("OpenAISettings");
+            if (openAISettingsType == null)
+            {
+                // Suche in allen Assemblies
+                var assemblies = System.AppDomain.CurrentDomain.GetAssemblies();
+                foreach (var assembly in assemblies)
+                {
+                    foreach (var type in assembly.GetTypes())
+                    {
+                        if (type.Name == "OpenAISettings" && type.IsSubclassOf(typeof(ScriptableObject)))
+                        {
+                            openAISettingsType = type;
+                            break;
+                        }
+                    }
+                    if (openAISettingsType != null) break;
+                }
+            }
+
+            if (openAISettingsType == null)
+            {
+                log("❌ OpenAISettings class not found in project");
+                return null;
+            }
+
+            // Erstelle Instanz
+            var newSettings = ScriptableObject.CreateInstance(openAISettingsType);
+            if (newSettings == null)
+            {
+                log("❌ Failed to create OpenAISettings instance");
+                return null;
+            }
+
+            // Speichere Asset
+            string assetPath = "Assets/Resources/OpenAISettings.asset";
+            UnityEditor.AssetDatabase.CreateAsset(newSettings, assetPath);
+            UnityEditor.AssetDatabase.SaveAssets();
+            UnityEditor.AssetDatabase.Refresh();
+
+            log($"✅ Created OpenAISettings at: {assetPath}");
+            return newSettings;
+#else
+            return null;
+#endif
         }
     }
 }

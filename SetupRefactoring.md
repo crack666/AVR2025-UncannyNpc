@@ -39,3 +39,41 @@ The current setup scripts, especially `CreateUISystemStep.cs` and `SetupLipSyncS
 - **Phase 3: Identify and Mark Obsolete Code**
     - [ ] **Step 3.1: Analyze Code References** - I will go through the newly refactored scripts and the remaining original ones to find any methods that are no longer referenced.
     - [ ] **Step 3.2: Mark Obsolete Methods** - I will add a `// TODO: Obsolete?` comment to any unreferenced public or internal methods so they can be reviewed and removed later.
+
+---
+
+## ✅ **Completed - Voice System Refactoring (July 2025)**
+
+### **Phase 4: OpenAIVoice System Modularization**
+
+- [x] **Step 4.1: Extract OpenAIVoice Enum**
+    - [x] **Step 4.1.1:** Created `Assets/Scripts/OpenAI/OpenAIVoice.cs` 
+    - [x] **Step 4.1.2:** Moved `OpenAIVoice` enum from inline usage to dedicated file
+    - [x] **Step 4.1.3:** Added static extension class `OpenAIVoiceExtensions` with utility methods
+
+- [x] **Step 4.2: Voice Description Enhancement**
+    - [x] **Step 4.2.1:** Added gender indicators to voice descriptions
+    - [x] **Step 4.2.2:** Implemented `GetDescription()` method with format: "Alloy (neutral): Balanced, warm voice"
+    - [x] **Step 4.2.3:** Added `GetAllVoiceDescriptions()` for UI dropdown population
+
+- [x] **Step 4.3: Serialization Improvements** 
+    - [x] **Step 4.3.1:** Refactored `OpenAISettings` to use `int voiceIndex` instead of enum
+    - [x] **Step 4.3.2:** Added automatic validation and fallback for invalid voice indices
+    - [x] **Step 4.3.3:** Implemented `VoiceIndex` property with getter validation
+
+- [x] **Step 4.4: Fix UI Integration**
+    - [x] **Step 4.4.1:** Updated `NPCUIManager.OnVoiceDropdownChanged()` to use VoiceIndex property
+    - [x] **Step 4.4.2:** Enhanced voice dropdown to show descriptive names with gender
+    - [x] **Step 4.4.3:** Fixed runtime voice switching functionality
+
+- [x] **Step 4.5: Update All Voice References**
+    - [x] **Step 4.5.1:** Updated `RealtimeClient.GetVoiceNameFromSettings()` to use VoiceIndex
+    - [x] **Step 4.5.2:** Fixed all compilation errors related to removed `settings.Voice` property
+    - [x] **Step 4.5.3:** Ensured type safety across all voice-related operations
+
+### **Benefits Achieved:**
+- ✅ **Modular Architecture**: Voice system now in dedicated file with extension methods
+- ✅ **Improved UX**: Descriptive voice names with gender indicators in UI
+- ✅ **Robust Serialization**: No more enum serialization issues
+- ✅ **Type Safety**: Compile-time validation for all voice operations
+- ✅ **Runtime Reliability**: Automatic validation and fallback for invalid states

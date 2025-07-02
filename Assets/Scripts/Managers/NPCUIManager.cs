@@ -114,9 +114,24 @@ namespace Managers
             if (voiceDropdown != null)
             {
                 voiceDropdown.ClearOptions();
-                var enumNames = System.Enum.GetNames(typeof(OpenAIVoice));
-                voiceDropdown.AddOptions(new System.Collections.Generic.List<string>(enumNames));
-                voiceDropdown.value = (int)voice;
+                // Use descriptive voice names for better UX
+                var descriptiveNames = OpenAIVoiceExtensions.GetAllVoiceDescriptions();
+                voiceDropdown.AddOptions(new System.Collections.Generic.List<string>(descriptiveNames));
+                
+                // Sichere Voice-Initialisierung: Verwende alloy falls aktueller Wert ungültig
+                int safeVoiceIndex = 0; // alloy ist Index 0
+                if (OpenAIVoiceExtensions.IsValid(voice))
+                {
+                    safeVoiceIndex = (int)voice;
+                }
+                else
+                {
+                    Debug.LogWarning($"[UI] Invalid voice {voice} detected, using alloy instead");
+                    voice = OpenAIVoiceExtensions.GetDefault();
+                }
+                
+                voiceDropdown.value = safeVoiceIndex;
+                voiceDropdown.RefreshShownValue();
                 voiceDropdown.onValueChanged.AddListener(OnVoiceDropdownChanged);
             }
         }
@@ -239,30 +254,70 @@ namespace Managers
 
         private void OnVoiceDropdownChanged(int index)
         {
-            var newVoice = (OpenAIVoice)index;
-            if (voice != newVoice)
+            var enumValues = System.Enum.GetValues(typeof(OpenAIVoice));
+            if (index >= 0 && index < enumValues.Length)
             {
-                voice = newVoice;
-                // OpenAISettings zur Laufzeit anpassen
-                var settings = Resources.Load<OpenAISettings>("OpenAISettings");
-                if (settings != null)
+                var newVoice = (OpenAIVoice)enumValues.GetValue(index);
+                if (voice != newVoice)
                 {
-                    var field = typeof(OpenAISettings).GetField("voice", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                    if (field != null)
+                    voice = newVoice;
+                    
+                    // OpenAISettings zur Laufzeit anpassen - use VoiceIndex instead of voice field
+                    var settings = Resources.Load<OpenAISettings>("OpenAISettings");
+                    if (settings != null)
                     {
-                        field.SetValue(settings, newVoice);
-                        Debug.Log($"[UI] OpenAISettings.voice zur Laufzeit gesetzt: {newVoice}");
+                        // Set the VoiceIndex property instead of the removed voice field
+                        var voiceIndexProperty = typeof(OpenAISettings).GetProperty("VoiceIndex");
+                        if (voiceIndexProperty != null)
+                        {
+                            voiceIndexProperty.SetValue(settings, index);
+                            Debug.Log($"[UI] OpenAISettings.VoiceIndex zur Laufzeit gesetzt: {index} ({newVoice})");
+                        }
                     }
+                    
+                    // Falls Conversation läuft, muss diese neu gestartet werden
+                    bool wasConversationActive = false;
+                    if (npcController != null && npcController.CurrentState == NPCState.Speaking)
+                    {
+                        wasConversationActive = true;
+                        npcController.StopConversation();
+                        UpdateStatus("Stopping conversation to change voice...", systemMessageColor);
+                    }
+                    
+                    // RealtimeClient-Instanz finden und SessionUpdate senden (falls verbunden)
+                    var client = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeClient>();
+                    if (client != null && client.IsConnected)
+                    {
+                        _ = client.SendSessionUpdateAsync();
+                        
+                        // Falls Conversation aktiv war, nach kurzer Delay wieder starten
+                        if (wasConversationActive)
+                        {
+                            // HINWEIS: Coroutine entfernt für Editor-Kompatibilität
+                            // StartCoroutine(RestartConversationAfterDelay(1.0f));
+                            
+                            // Direkter Neustart ohne Delay (Editor-kompatibel)
+                            npcController.StartConversation();
+                            UpdateStatus("Conversation restarted with new voice", systemMessageColor);
+                        }
+                    }
+                    
+                    UpdateStatus($"Voice changed to: {voice}", systemMessageColor);
                 }
-                // RealtimeClient-Instanz finden und SessionUpdate senden
-                var client = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeClient>();
-                if (client != null && client.IsConnected)
-                {
-                    _ = client.SendSessionUpdateAsync();
-                }
-                UpdateStatus($"Voice changed to: {voice}", systemMessageColor);
             }
         }
+
+        /* AUSKOMMENTIERT: Coroutine nicht kompatibel mit Editor-Scripts
+        private System.Collections.IEnumerator RestartConversationAfterDelay(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            if (npcController != null)
+            {
+                npcController.StartConversation();
+                UpdateStatus("Conversation restarted with new voice", systemMessageColor);
+            }
+        }
+        */
 
         #endregion
 
@@ -275,7 +330,17 @@ namespace Managers
 
         private void OnNPCFinishedSpeaking()
         {
+            // TEMPORÄRER Status - wird durch UpdateUIState() überschrieben
             UpdateStatus("NPC finished speaking.", npcMessageColor);
+            
+            // Force UI update nach kurzer Delay
+            StartCoroutine(DelayedUIUpdate());
+        }
+        
+        private System.Collections.IEnumerator DelayedUIUpdate()
+        {
+            yield return new WaitForSeconds(0.1f); // Kurze Delay für State-Transition
+            UpdateUIState(); // Force full UI state update
         }
 
         private void OnNPCStartedListening()
@@ -303,19 +368,61 @@ namespace Managers
             {
                 // Update button interactability
                 bool isConnected = npcController.IsConnected;
-                bool isConversing = npcController.CurrentState == NPCState.Speaking;
+                bool isConversing = npcController.CurrentState == NPCState.Speaking || npcController.CurrentState == NPCState.Listening;
 
-                connectButton.interactable = !isConnected;
-                disconnectButton.interactable = isConnected;
-                startConversationButton.interactable = isConnected && !isConversing;
-                stopConversationButton.interactable = isConversing;
-                sendMessageButton.interactable = isConversing;
+                if (connectButton != null) connectButton.interactable = !isConnected;
+                if (disconnectButton != null) disconnectButton.interactable = isConnected;
+                if (startConversationButton != null) startConversationButton.interactable = isConnected && !isConversing;
+                if (stopConversationButton != null) stopConversationButton.interactable = isConversing;
+                if (sendMessageButton != null) sendMessageButton.interactable = isConnected;
 
-                // Update status display
-                statusDisplay.text = isConnected ? "Connected to OpenAI" : "Disconnected from OpenAI";
+                // Update status display based on current state
+                if (statusDisplay != null)
+                {
+                    string statusText = "Status: ";
+                    Color statusColor = systemMessageColor;
+                    
+                    if (!isConnected)
+                    {
+                        statusText += "Disconnected";
+                        statusColor = Color.red;
+                    }
+                    else
+                    {
+                        switch (npcController.CurrentState)
+                        {
+                            case NPCState.Idle:
+                                statusText += "Connected - Ready";
+                                statusColor = Color.green;
+                                break;
+                            case NPCState.Listening:
+                                statusText += "Listening...";
+                                statusColor = Color.yellow;
+                                break;
+                            case NPCState.Speaking:
+                                statusText += "Speaking...";
+                                statusColor = npcMessageColor;
+                                break;
+                            case NPCState.Processing:
+                                statusText += "Processing...";
+                                statusColor = Color.cyan;
+                                break;
+                            default:
+                                statusText += "Connected";
+                                statusColor = Color.green;
+                                break;
+                        }
+                    }
+                    
+                    statusDisplay.text = statusText;
+                    statusDisplay.color = statusColor;
+                }
 
                 // Update conversation display
-                conversationDisplay.text = conversationHistory;
+                if (conversationDisplay != null)
+                {
+                    conversationDisplay.text = conversationHistory;
+                }
             }
         }
 
@@ -356,7 +463,18 @@ namespace Managers
         private void OnVolumeChanged(float value)
         {
             AudioListener.volume = value;
-            UpdateStatus($"Volume set to: {value}", systemMessageColor);
+            UpdateStatus($"Volume set to: {(value * 100):F0}%", systemMessageColor);
+        }
+
+        public void OnVADToggleChanged(bool enabled)
+        {
+            // VAD Enable/Disable Logic - implementiere wenn VAD System vorhanden ist
+            if (npcController != null)
+            {
+                // Hier könnte VAD-spezifische Logik stehen
+                Debug.Log($"[UI] VAD Toggle changed: {enabled}");
+            }
+            UpdateStatus(enabled ? "VAD Enabled" : "VAD Disabled", systemMessageColor);
         }
 
         #endregion

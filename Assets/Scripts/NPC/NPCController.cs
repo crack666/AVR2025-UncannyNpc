@@ -417,6 +417,8 @@ namespace NPC
 
         private void OnAudioPlaybackFinished()
         {
+            Debug.Log($"[NPCController] OnAudioPlaybackFinished called for {npcName}");
+            
             // Audio playback finished - reset accumulated text and return to listening
             OnNPCFinishedSpeaking?.Invoke();
             accumulatedText = ""; // Reset for next response

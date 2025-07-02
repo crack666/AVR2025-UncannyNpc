@@ -76,6 +76,7 @@ namespace OpenAI.RealtimeAPI
         private int streamWriteOffset = 0;
         private bool streamHasStarted = false;
         private bool streamHasInterrupted = false;
+        private bool audioPlaybackFinishedPending = false; // Flag für Update() Fallback
         private Dictionary<string, int> streamTrackSampleOffsets = new Dictionary<string, int>();
         private AudioClip streamAudioClip;
         private float[] streamAudioData;
@@ -316,6 +317,24 @@ namespace OpenAI.RealtimeAPI
         private void Update()
         {
             if (!isInitialized) return;
+            
+            // Handle pending audio playback finished event (Fallback)
+            if (audioPlaybackFinishedPending)
+            {
+                audioPlaybackFinishedPending = false;
+                OnAudioPlaybackFinished?.Invoke();
+                Log("[GAPLESS] Audio playback finished - triggered from Update()");
+            }
+            
+            // ZUSÄTZLICHE SICHERUNG: Prüfe ob AudioSource aufgehört hat zu spielen
+            // aber das System denkt noch, dass Audio läuft
+            if (useGaplessStreaming && streamHasStarted && playbackAudioSource != null && 
+                !playbackAudioSource.isPlaying && streamOutputBuffers.Count == 0)
+            {
+                Log("[GAPLESS] SAFETY CHECK: AudioSource stopped but stream still active - triggering finish event");
+                streamHasStarted = false;
+                OnAudioPlaybackFinished?.Invoke();
+            }
             
             UpdateMicrophoneLevel();
             UpdateVoiceActivityDetection();
@@ -605,11 +624,20 @@ namespace OpenAI.RealtimeAPI
                     // CRITICAL: Reset stream state and trigger audio finished event
                     streamHasStarted = false;
                     
-                    // Trigger audio finished event on main thread
-                    UnityMainThreadDispatcher.EnqueueAction(() => {
-                        OnAudioPlaybackFinished?.Invoke();
-                        Log("[GAPLESS] Audio playback finished - ready for next recording");
-                    });
+                    // ROBUSTERE LÖSUNG: Direct invoke on main thread + Fallback
+                    if (UnityMainThreadDispatcher.Instance != null)
+                    {
+                        UnityMainThreadDispatcher.EnqueueAction(() => {
+                            OnAudioPlaybackFinished?.Invoke();
+                            Log("[GAPLESS] Audio playback finished - ready for next recording");
+                        });
+                    }
+                    else
+                    {
+                        // Fallback: Set flag for Update() method to handle
+                        audioPlaybackFinishedPending = true;
+                        Log("[GAPLESS] Audio playback finished - will trigger on next Update()");
+                    }
                 }
                 
                 // Log if we have buffers but haven't started

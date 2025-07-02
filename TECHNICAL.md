@@ -479,6 +479,59 @@ public static void ExecuteFullSetup(...) {
 - Die Phoneme und BlendShape-Regeln sind so gewählt, dass sie mit ReadyPlayerMe-Avataren direkt realistische Mundbewegungen erzeugen.
 
 ---
+
+## 📅 **Technical Updates & Fixes**
+
+### **v2.1 - Voice System Refactoring (July 2025)**
+
+#### **OpenAIVoice Enum Refactoring**
+```csharp
+// OLD: Inline enum with serialization issues
+public enum OpenAIVoice { alloy, echo, fable, ... }
+
+// NEW: Modular system with extension methods
+public static class OpenAIVoiceExtensions
+{
+    public static string GetDescription(this OpenAIVoice voice) =>
+        voice switch {
+            OpenAIVoice.alloy => "Alloy (neutral): Balanced, warm voice",
+            // ... descriptive names with gender indicators
+        };
+}
+```
+
+#### **Serialization Improvements**
+```csharp
+// OLD: Direct enum serialization (unreliable)
+[SerializeField] private OpenAIVoice voice;
+
+// NEW: Index-based with validation
+[SerializeField] private int voiceIndex = 0;
+public int VoiceIndex { 
+    get { 
+        // Auto-validation and fallback
+        if (voiceIndex < 0 || voiceIndex >= 8) {
+            voiceIndex = 0; // Reset to alloy
+        }
+        return voiceIndex;
+    } 
+}
+```
+
+#### **Runtime Voice Switching Fixed**
+- **Problem**: UI dropdown changes didn't update OpenAISettings properly
+- **Solution**: Updated `OnVoiceDropdownChanged()` to use VoiceIndex property instead of reflection-based field access
+- **Result**: Seamless voice switching during gameplay
+
+#### **Technical Benefits**
+- ✅ **Type Safety**: Compile-time validation for all voice references
+- ✅ **Maintainability**: OpenAIVoice system in dedicated file
+- ✅ **Reliability**: Automatic validation prevents invalid voice states
+- ✅ **User Experience**: Descriptive voice names with gender indicators
+- ✅ **Editor Compatibility**: No more Editor coroutines or forced scene saves
+
+---
+
 **This technical documentation reflects our journey from choppy audio to production-ready gapless streaming. Every optimization and pattern here was learned through real implementation challenges.** 🎯
 
 *For setup instructions, see [SETUP.md](SETUP.md)*
