@@ -50,6 +50,20 @@ public class OpenAISettings : ScriptableObject
             }
             return voiceIndex;
         }
+        set
+        {
+            if (value >= 0 && value < 8) // 8 verfügbare Voices (0-7)
+            {
+                voiceIndex = value;
+#if UNITY_EDITOR
+                UnityEditor.EditorUtility.SetDirty(this);
+#endif
+            }
+            else
+            {
+                Debug.LogWarning($"[OpenAISettings] Invalid voice index {value}. Keeping current value {voiceIndex}.");
+            }
+        }
     }
     
     public float Temperature => temperature;

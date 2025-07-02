@@ -262,17 +262,13 @@ namespace Managers
                 {
                     voice = newVoice;
                     
-                    // OpenAISettings zur Laufzeit anpassen - use VoiceIndex instead of voice field
+                    // OpenAI Settings zur Laufzeit anpassen - direct property access
                     var settings = Resources.Load<OpenAISettings>("OpenAISettings");
                     if (settings != null)
                     {
-                        // Set the VoiceIndex property instead of the removed voice field
-                        var voiceIndexProperty = typeof(OpenAISettings).GetProperty("VoiceIndex");
-                        if (voiceIndexProperty != null)
-                        {
-                            voiceIndexProperty.SetValue(settings, index);
-                            Debug.Log($"[UI] OpenAISettings.VoiceIndex zur Laufzeit gesetzt: {index} ({newVoice})");
-                        }
+                        // Direct property access instead of reflection
+                        settings.VoiceIndex = index;
+                        Debug.Log($"[UI] OpenAISettings.VoiceIndex zur Laufzeit gesetzt: {index} ({newVoice})");
                     }
                     
                     // Falls Conversation läuft, muss diese neu gestartet werden
