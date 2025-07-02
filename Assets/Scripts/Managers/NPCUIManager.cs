@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
 using NPC;
+using OpenAI.Threading;
 
 namespace Managers
 {
@@ -46,6 +47,13 @@ namespace Managers
         private UnityEngine.Events.UnityAction<string> conversationUpdateListener;
         // Listener-Delegate für messageInputField
         private UnityEngine.Events.UnityAction<string> messageInputListener;
+
+        // Voice change cooldown to prevent API conflicts
+        private float lastVoiceChangeTime = 0f;
+        private const float VOICE_CHANGE_COOLDOWN = 2.0f; // 2 seconds cooldown after audio playback
+
+        // Voice change protection to prevent multiple simultaneous operations
+        private bool isVoiceChangeInProgress = false;
 
         #region Unity Lifecycle
         private void Awake()
@@ -197,7 +205,7 @@ namespace Managers
         {
             if (npcController != null)
             {
-                npcController.ConnectToOpenAI();
+                _ = npcController.ConnectToOpenAI(); // Fire-and-forget async
                 UpdateStatus("Connecting to OpenAI...", systemMessageColor);
             }
         }
@@ -206,7 +214,7 @@ namespace Managers
         {
             if (npcController != null)
             {
-                npcController.DisconnectFromOpenAI();
+                _ = npcController.DisconnectFromOpenAI(); // Fire-and-forget async
                 UpdateStatus("Disconnecting...", systemMessageColor);
             }
         }
@@ -254,6 +262,19 @@ namespace Managers
 
         private void OnVoiceDropdownChanged(int index)
         {
+            // Prevent multiple simultaneous voice changes
+            if (isVoiceChangeInProgress)
+            {
+                Debug.LogWarning("[UI] Voice change already in progress - ignoring new request");
+                return;
+            }
+            
+            // Temporarily disable dropdown during voice change
+            if (voiceDropdown != null)
+            {
+                voiceDropdown.interactable = false;
+            }
+            
             var enumValues = System.Enum.GetValues(typeof(OpenAIVoice));
             if (index >= 0 && index < enumValues.Length)
             {
@@ -261,6 +282,7 @@ namespace Managers
                 if (voice != newVoice)
                 {
                     voice = newVoice;
+                    isVoiceChangeInProgress = true;
                     
                     // OpenAI Settings zur Laufzeit anpassen - direct property access
                     var settings = Resources.Load<OpenAISettings>("OpenAISettings");
@@ -271,34 +293,138 @@ namespace Managers
                         Debug.Log($"[UI] OpenAISettings.VoiceIndex zur Laufzeit gesetzt: {index} ({newVoice})");
                     }
                     
-                    // Falls Conversation läuft, muss diese neu gestartet werden
-                    bool wasConversationActive = false;
-                    if (npcController != null && npcController.CurrentState == NPCState.Speaking)
-                    {
-                        wasConversationActive = true;
-                        npcController.StopConversation();
-                        UpdateStatus("Stopping conversation to change voice...", systemMessageColor);
-                    }
-                    
-                    // RealtimeClient-Instanz finden und SessionUpdate senden (falls verbunden)
                     var client = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeClient>();
                     if (client != null && client.IsConnected)
                     {
-                        _ = client.SendSessionUpdateAsync();
+                        // CRITICAL: OpenAI API never allows voice changes after any assistant audio
+                        // The session becomes "tainted" once assistant speaks, regardless of timing
+                        // ALWAYS force session restart for voice changes during active sessions
                         
-                        // Falls Conversation aktiv war, nach kurzer Delay wieder starten
-                        if (wasConversationActive)
+                        Debug.Log($"[UI] Voice change requested during active session - ALWAYS restart required");
+                        UpdateStatus($"Restarting session for voice change to {newVoice}...", systemMessageColor);
+                        
+                        ForceSessionRestartForVoiceChange();
+                    }
+                    else
+                    {
+                        // Not connected - just update settings
+                        UpdateStatus($"Voice set to: {newVoice} (will apply on next connection)", systemMessageColor);
+                        isVoiceChangeInProgress = false; // Reset flag
+                        
+                        // Re-enable dropdown
+                        if (voiceDropdown != null)
                         {
-                            // HINWEIS: Coroutine entfernt für Editor-Kompatibilität
-                            // StartCoroutine(RestartConversationAfterDelay(1.0f));
-                            
-                            // Direkter Neustart ohne Delay (Editor-kompatibel)
-                            npcController.StartConversation();
-                            UpdateStatus("Conversation restarted with new voice", systemMessageColor);
+                            voiceDropdown.interactable = true;
                         }
                     }
+                }
+                else
+                {
+                    isVoiceChangeInProgress = false; // Reset flag if no change needed
                     
-                    UpdateStatus($"Voice changed to: {voice}", systemMessageColor);
+                    // Re-enable dropdown
+                    if (voiceDropdown != null)
+                    {
+                        voiceDropdown.interactable = true;
+                    }
+                }
+            }
+            else
+            {
+                isVoiceChangeInProgress = false; // Reset flag if invalid index
+                
+                // Re-enable dropdown
+                if (voiceDropdown != null)
+                {
+                    voiceDropdown.interactable = true;
+                }
+            }
+        }
+        
+        private void ForceSessionRestartForVoiceChange()
+        {
+            // Stop conversation completely and trigger session restart
+            if (npcController != null)
+            {
+                npcController.StopConversation();
+                
+                // Start coroutine for main-thread safe session restart
+                StartCoroutine(SessionRestartCoroutine());
+            }
+            else
+            {
+                // No NPC controller - just reset flag
+                isVoiceChangeInProgress = false;
+            }
+        }
+        
+        private System.Collections.IEnumerator SessionRestartCoroutine()
+        {
+            // Force a full disconnect/reconnect cycle on main thread
+            bool disconnectSuccess = false;
+            bool connectSuccess = false;
+            System.Exception lastException = null;
+            
+            // Start disconnect task
+            var disconnectTask = npcController.DisconnectFromOpenAI();
+            
+            // Wait for disconnect to complete
+            yield return new WaitUntil(() => disconnectTask.IsCompleted);
+            
+            if (disconnectTask.IsFaulted)
+            {
+                lastException = disconnectTask.Exception?.GetBaseException() ?? new System.Exception("Disconnect failed");
+            }
+            else
+            {
+                disconnectSuccess = true;
+            }
+            
+            if (disconnectSuccess)
+            {
+                // Wait for cleanup
+                yield return new WaitForSeconds(1.0f);
+                
+                // Start reconnect task
+                var connectTask = npcController.ConnectToOpenAI();
+                
+                // Wait for connect to complete
+                yield return new WaitUntil(() => connectTask.IsCompleted);
+                
+                if (connectTask.IsFaulted)
+                {
+                    lastException = connectTask.Exception?.GetBaseException() ?? new System.Exception("Connect failed");
+                }
+                else
+                {
+                    connectSuccess = true;
+                }
+            }
+            
+            // Handle results
+            if (disconnectSuccess && connectSuccess)
+            {
+                // Success - update UI
+                UpdateStatus("Session restarted with new voice", systemMessageColor);
+                isVoiceChangeInProgress = false; // Reset protection flag
+                
+                // Re-enable dropdown
+                if (voiceDropdown != null)
+                {
+                    voiceDropdown.interactable = true;
+                }
+            }
+            else
+            {
+                // Error - update UI
+                Debug.LogError($"[UI] Error during voice change session restart: {lastException?.Message ?? "Unknown error"}");
+                UpdateStatus("Voice change failed - please try again", systemMessageColor);
+                isVoiceChangeInProgress = false; // Reset protection flag
+                
+                // Re-enable dropdown
+                if (voiceDropdown != null)
+                {
+                    voiceDropdown.interactable = true;
                 }
             }
         }
@@ -326,11 +452,12 @@ namespace Managers
 
         private void OnNPCFinishedSpeaking()
         {
-            // TEMPORÄRER Status - wird durch UpdateUIState() überschrieben
-            UpdateStatus("NPC finished speaking.", npcMessageColor);
-            
-            // Force UI update nach kurzer Delay
+            UpdateStatus("AI finished speaking", systemMessageColor);
             StartCoroutine(DelayedUIUpdate());
+            
+            // Update voice change cooldown timer
+            lastVoiceChangeTime = Time.time;
+            Debug.Log($"[UI] Voice change cooldown timer reset after NPC finished speaking");
         }
         
         private System.Collections.IEnumerator DelayedUIUpdate()

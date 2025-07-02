@@ -48,8 +48,6 @@ namespace OpenAI.RealtimeAPI
         private string sessionId;
         private SessionState sessionState;
 
-        private bool isCommittingAudioBuffer = false; // Debug-Flag für doppelte Commits
-
         // --- NEW: Track if a response is currently running ---
         private bool isAwaitingResponse = false;
 
@@ -176,6 +174,9 @@ namespace OpenAI.RealtimeAPI
 
             isConnected = true;
             sessionId = Guid.NewGuid().ToString();
+            
+            // Reset awaiting response state for fresh session
+            isAwaitingResponse = false;
 
             Debug.Log("RealtimeClient: Connected to OpenAI Realtime API");
 
@@ -195,6 +196,7 @@ namespace OpenAI.RealtimeAPI
                 return;
 
             isConnected = false;
+            isAwaitingResponse = false; // Reset awaiting response state
 
             try
             {
@@ -431,7 +433,6 @@ namespace OpenAI.RealtimeAPI
             {
                 Debug.LogWarning("[RealtimeClient] 'Already has active response' - this suggests a race condition. Resetting state.");
                 isAwaitingResponse = false; // Reset state
-                isCommittingAudioBuffer = false; // Reset commit flag
                 return; // Don't propagate this error
             }
 
@@ -534,51 +535,7 @@ namespace OpenAI.RealtimeAPI
             await SendJsonAsync(responseEvent);
         }
 
-        public async Task CommitAudioBuffer()
-        {
-            Debug.Log($"[RealtimeClient] CommitAudioBuffer: isConnected={isConnected}, isCommittingAudioBuffer={isCommittingAudioBuffer}, isAwaitingResponse={isAwaitingResponse}");
 
-            if (!isConnected || isCommittingAudioBuffer || isAwaitingResponse)
-            {
-                Debug.LogWarning("[RealtimeClient] CommitAudioBuffer: Conditions not met for commit");
-                return;
-            }
-
-            isCommittingAudioBuffer = true;
-
-            try
-            {
-                // Background thread: Send commit message
-                var commitEvent = new { type = "input_audio_buffer.commit" };
-                await SendJsonAsync(commitEvent).ConfigureAwait(false);
-
-                // Non-blocking delay
-                await Task.Delay(50).ConfigureAwait(false);
-
-                // Set awaiting response flag
-                isAwaitingResponse = true;
-
-                // Background thread: Send response create
-                var responseEvent = new { type = "response.create" };
-                await SendJsonAsync(responseEvent).ConfigureAwait(false);
-
-                Debug.Log("[RealtimeClient] CommitAudioBuffer completed successfully");
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[RealtimeClient] Error in CommitAudioBuffer: {ex.Message}");
-                isAwaitingResponse = false;
-
-                // Thread-safe: Error callback to main thread
-                UnityMainThreadDispatcher.EnqueueAction(() => {
-                    OnError?.Invoke($"Commit error: {ex.Message}");
-                });
-            }
-            finally
-            {
-                isCommittingAudioBuffer = false;
-            }
-        }
 
         private async Task SendJsonAsync(object data)
         {
@@ -633,9 +590,24 @@ namespace OpenAI.RealtimeAPI
         {
             if (isConnected)
             {
-                _ = CommitAudioBuffer();
-                Debug.Log("RealtimeClient: Stopped listening, committed audio buffer");
+                // Simply create response - no manual audio buffer commit needed
+                // The official OpenAI implementation only calls createResponse()
+                CreateResponse();
+                Debug.Log("RealtimeClient: Stopped listening, creating response");
             }
+        }
+        
+        /// <summary>
+        /// Create a response from the current conversation context
+        /// This replaces the manual audio buffer commit pattern
+        /// </summary>
+        public void CreateResponse()
+        {
+            if (!isConnected) return;
+            
+            var responseEvent = new { type = "response.create" };
+            _ = SendJsonAsync(responseEvent);
+            Debug.Log("RealtimeClient: Creating response");
         }
 
         public void SendUserMessage(string message)
@@ -685,6 +657,15 @@ namespace OpenAI.RealtimeAPI
 
             Debug.LogWarning($"[RealtimeClient] Invalid voice index {voiceIndex}, using default 'alloy'");
             return "alloy";
+        }
+
+        /// <summary>
+        /// Resets all session state flags to ensure clean restart
+        /// </summary>
+        public void ResetSessionState()
+        {
+            isAwaitingResponse = false;
+            Debug.Log("[RealtimeClient] Session state reset - ready for new conversation");
         }
     }
 }

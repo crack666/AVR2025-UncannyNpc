@@ -80,14 +80,16 @@ namespace NPC
                 
                 await realtimeClient.DisconnectAsync();
                 
-                // Wait a moment for cleanup
-                await System.Threading.Tasks.Task.Delay(500);
+                // Wait longer for complete cleanup of audio operations
+                await System.Threading.Tasks.Task.Delay(1000); // Increased from 500ms
                 
                 // Restart connection
                 var success = await realtimeClient.ConnectAsync();
                 
                 if (success)
                 {
+                    // Ensure clean state after successful voice change restart
+                    realtimeClient.ResetSessionState();
                     Debug.Log($"[NPCController] Session restarted successfully for voice change for {npcName}");
                     SetState(NPCState.Idle);
                 }
@@ -156,21 +158,26 @@ namespace NPC
 
         #region Public API
 
-        public async void ConnectToOpenAI()
+        public async System.Threading.Tasks.Task ConnectToOpenAI()
         {
             if (realtimeClient != null)
             {
                 SetState(NPCState.Connecting);
                 var success = await realtimeClient.ConnectAsync();
 
-                if (!success)
+                if (success)
+                {
+                    // Ensure clean state after successful connection
+                    realtimeClient.ResetSessionState();
+                }
+                else
                 {
                     SetState(NPCState.Error);
                 }
             }
         }
 
-        public async void DisconnectFromOpenAI()
+        public async System.Threading.Tasks.Task DisconnectFromOpenAI()
         {
             if (realtimeClient != null)
             {
@@ -321,8 +328,37 @@ namespace NPC
             // 3. Handle voice change errors - requires session restart
             if (error.Contains("Cannot update a conversation's voice if assistant audio is present"))
             {
-                Debug.LogWarning($"NPC '{npcName}' voice change during session not allowed - restarting session: {error}");
-                RestartSessionForVoiceChange();
+                Debug.LogWarning($"NPC '{npcName}' voice change during session not allowed - waiting briefly for UI-initiated restart: {error}");
+                
+                // Force stop all audio first to clear any assistant audio
+                if (audioManager != null)
+                {
+                    audioManager.ForceStopAllRecording();
+                }
+                
+                // Small delay to allow UI-initiated restart to take precedence
+                // This prevents race conditions between UI and error handler restarts
+                System.Threading.Tasks.Task.Run(async () =>
+                {
+                    await System.Threading.Tasks.Task.Delay(200); // Brief delay
+                    
+                    // Check if we're still connected (UI restart might have already started)
+                    if (realtimeClient != null && realtimeClient.IsConnected)
+                    {
+                        Debug.LogWarning($"NPC '{npcName}' triggering fallback session restart for voice change");
+                        
+                        // Ensure restart runs on main thread due to Unity API calls
+                        OpenAI.Threading.UnityMainThreadDispatcher.EnqueueAction(() =>
+                        {
+                            RestartSessionForVoiceChange();
+                        });
+                    }
+                    else
+                    {
+                        Debug.Log($"NPC '{npcName}' session already disconnected - UI restart likely in progress");
+                    }
+                });
+                
                 return; // Don't set error state, handle restart
             }
             
@@ -332,7 +368,7 @@ namespace NPC
                 Debug.LogWarning($"NPC '{npcName}' connection error, attempting recovery: {error}");
                 // Try reconnection instead of error state
                 SetState(NPCState.Connecting);
-                ConnectToOpenAI(); // Async reconnect
+                _ = ConnectToOpenAI(); // Fire-and-forget async reconnect
                 return;
             }
             
@@ -580,7 +616,7 @@ namespace NPC
         [ContextMenu("Test Connection")]
         private void TestConnection()
         {
-            ConnectToOpenAI();
+            _ = ConnectToOpenAI(); // Fire-and-forget for menu item
         }
 
         [ContextMenu("Start Test Conversation")]

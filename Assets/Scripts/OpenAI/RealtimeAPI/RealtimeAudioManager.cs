@@ -54,6 +54,7 @@ namespace OpenAI.RealtimeAPI
         private float[] microphoneBuffer;
         private int bufferPosition;
         
+
         // Voice Activity Detection
         private bool voiceDetected;
         private float lastVoiceTime;
@@ -95,19 +96,20 @@ namespace OpenAI.RealtimeAPI
             }
         }
         
-        // Properties
+        // Public Properties
         public bool IsRecording => isRecording;
-        public bool IsInitialized => isInitialized;
+        public int BufferSampleCount => bufferPosition;
         public float CurrentMicrophoneLevel => currentMicrophoneLevel;
-        public bool VoiceDetected => voiceDetected;
         public string CurrentMicrophone => currentMicrophone;
+        public bool VoiceDetected => voiceDetected;
+
         
         // Thread-safe async recording stop
         private async void TriggerStopRecordingAsync()
         {
             try
             {
-                if (isRecording && !isCommittingAudioBuffer)
+                if (isRecording)
                 {
                     await StopRecordingAsync();
                 }
@@ -142,7 +144,6 @@ namespace OpenAI.RealtimeAPI
                     microphoneClip = null;
                 }
 
-                bool hasRemainingBuffer = false;
                 byte[] pcmData = null;
                 if (bufferPosition > 0)
                 {
@@ -164,7 +165,6 @@ namespace OpenAI.RealtimeAPI
                         
                         // Wait for audio to be processed by API
                         await System.Threading.Tasks.Task.Delay(150).ConfigureAwait(false);
-                        hasRemainingBuffer = true;
                         
                         Debug.Log($"[RealtimeAudioManager] Remaining buffer sent successfully: {pcmData.Length} bytes");
                     }
@@ -175,26 +175,11 @@ namespace OpenAI.RealtimeAPI
                     bufferPosition = 0;
                 }
 
-                // CRITICAL FIX: Only commit if we actually sent audio AND are not awaiting response
-                if (realtimeClient != null && realtimeClient.IsConnected && !realtimeClient.IsAwaitingResponse && hasRemainingBuffer)
-                {
-                    if (!isCommittingAudioBuffer)
-                    {
-                        Debug.Log($"[RealtimeAudioManager] StopRecordingAsync: CommitAudioBuffer being called after sending {pcmData?.Length ?? 0} bytes.");
-                        await CommitAudioBufferAsync().ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        Debug.LogWarning("[RealtimeAudioManager] CommitAudioBuffer skipped: already committing!");
-                    }
-                }
-                else
-                {
-                    string reason = !hasRemainingBuffer ? "No audio sent" : 
-                                   !realtimeClient?.IsConnected == true ? "Not connected" : 
-                                   realtimeClient?.IsAwaitingResponse == true ? "Awaiting response" : "Unknown";
-                    Debug.Log($"[RealtimeAudioManager] CommitAudioBuffer skipped: {reason}");
-                }
+                // SIMPLIFIED: Following official OpenAI pattern - no manual commit needed
+                // The RealtimeClient.StopListening() will call CreateResponse() instead
+                Debug.Log($"[RealtimeAudioManager] StopRecordingAsync: Audio stopped, {pcmData?.Length ?? 0} bytes sent in final buffer");
+                
+                // No manual commit - let StopListening() handle response creation
 
                 // Main thread: Trigger Unity events
                 UnityMainThreadDispatcher.EnqueueAction(() => {
@@ -205,25 +190,10 @@ namespace OpenAI.RealtimeAPI
             catch (Exception e)
             {
                 LogError($"Failed to stop recording: {e.Message}");
-                isCommittingAudioBuffer = false;
             }
         }
 
-        // Thread-safe commit
-        private async System.Threading.Tasks.Task CommitAudioBufferAsync()
-        {
-            if (isCommittingAudioBuffer) return;
-            
-            isCommittingAudioBuffer = true;
-            try
-            {
-                await realtimeClient.CommitAudioBuffer().ConfigureAwait(false);
-            }
-            finally
-            {
-                isCommittingAudioBuffer = false;
-            }
-        }
+
 
 
         /// Forces complete stop of all recording and resets state
@@ -276,7 +246,6 @@ namespace OpenAI.RealtimeAPI
                 bufferPosition = 0;
                 lastMicrophonePosition = 0;
                 voiceDetected = false;
-                isCommittingAudioBuffer = false;
                 
                 // Clear audio queues
                 StopAllAudioPlayback();
@@ -996,7 +965,7 @@ namespace OpenAI.RealtimeAPI
             }
         }
         
-        private bool isCommittingAudioBuffer = false; // Prevent double commits
+
         
         private void UpdateVoiceActivityDetection()
         {
