@@ -7,7 +7,9 @@ namespace Setup.Steps
     {
         private System.Action<string> log;
         public ConfigureAudioSystemStep(System.Action<string> log) { this.log = log; }
-        public IEnumerator Execute(GameObject npcSystem)
+
+        // Synchronous version for Editor/Setup use
+        public void ExecuteSync(GameObject npcSystem)
         {
             log("🔊 Step 3: Audio System Configuration");
             // --- MicrophoneAudioSource ---
@@ -76,7 +78,14 @@ namespace Setup.Steps
                 log("✅ AudioSources linked in RealtimeAudioManager");
             }
             log("✅ RealtimeAudioManager configured");
-            yield return null;
+        }
+
+        // [Optional] Keep for compatibility, but mark as obsolete
+        [System.Obsolete("Use ExecuteSync instead. Coroutines are not supported in Editor setup.")]
+        public System.Collections.IEnumerator Execute(GameObject npcSystem)
+        {
+            ExecuteSync(npcSystem);
+            yield break;
         }
     }
 }
