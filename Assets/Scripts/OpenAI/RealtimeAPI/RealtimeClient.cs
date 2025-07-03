@@ -29,6 +29,7 @@ namespace OpenAI.RealtimeAPI
         public UnityEvent OnConnected;
         public UnityEvent OnDisconnected;
         public UnityEvent<string> OnError;
+        public UnityEvent OnResponseCompleted; // NEW: When OpenAI response is fully completed
 
         // Connection state
         private ClientWebSocket webSocket;
@@ -51,6 +52,10 @@ namespace OpenAI.RealtimeAPI
         // --- NEW: Track if a response is currently running ---
         private bool isAwaitingResponse = false;
 
+        // Event counting for aggregation (following OpenAI reference pattern)
+        private Dictionary<string, int> eventCounts = new Dictionary<string, int>();
+        private Dictionary<string, float> lastEventTimes = new Dictionary<string, float>();
+
         public bool IsConnected => isConnected;
         public string SessionId => sessionId;
         public bool IsAwaitingResponse
@@ -70,6 +75,7 @@ namespace OpenAI.RealtimeAPI
             OnConnected ??= new UnityEvent();
             OnDisconnected ??= new UnityEvent();
             OnError ??= new UnityEvent<string>();
+            OnResponseCompleted ??= new UnityEvent();
         }
 
         private void Start()
@@ -332,6 +338,9 @@ namespace OpenAI.RealtimeAPI
                         // ONLY HERE mark response as finished
                         isAwaitingResponse = false;
                         Debug.Log($"[RealtimeClient] Response finished: {eventData.type}");
+                        
+                        // CRITICAL: Trigger response completed event for NPC state management
+                        OnResponseCompleted?.Invoke();
                         break;
 
                     case "session.created":
@@ -400,7 +409,33 @@ namespace OpenAI.RealtimeAPI
 
         private void HandleItemCreated(RealtimeEvent eventData)
         {
-            Debug.Log($"RealtimeClient: Conversation item created: {eventData.item?.id}");
+            string itemType = eventData.item?.type ?? "unknown";
+            string itemRole = eventData.item?.role ?? "unknown";
+            string itemId = eventData.item?.id ?? "unknown";
+            
+            // Aggregate similar events (following OpenAI reference pattern)
+            string eventKey = $"item.created.{itemType}.{itemRole}";
+            float currentTime = Time.time;
+            
+            if (eventCounts.ContainsKey(eventKey) && 
+                lastEventTimes.ContainsKey(eventKey) && 
+                (currentTime - lastEventTimes[eventKey]) < 1.0f) // Within 1 second
+            {
+                eventCounts[eventKey]++;
+                lastEventTimes[eventKey] = currentTime;
+                
+                // Only log every 5th event or after 1 second gap
+                if (eventCounts[eventKey] % 5 == 0)
+                {
+                    Debug.Log($"RealtimeClient: Conversation items created: {itemType}/{itemRole} (count: {eventCounts[eventKey]})");
+                }
+            }
+            else
+            {
+                eventCounts[eventKey] = 1;
+                lastEventTimes[eventKey] = currentTime;
+                Debug.Log($"RealtimeClient: Conversation item created: {itemId} (type: {itemType}, role: {itemRole})");
+            }
         }
 
         private void HandleError(RealtimeEvent eventData)
@@ -415,11 +450,11 @@ namespace OpenAI.RealtimeAPI
                 isAwaitingResponse = false;
                 Debug.LogWarning("[RealtimeClient] Resetting isAwaitingResponse after 'buffer too small' error.");
 
-                // Check if audio playback has already started or finished
+                // Check if audio playback has already started
                 var audioManager = FindFirstObjectByType<RealtimeAudioManager>();
-                if (audioManager != null && (audioManager.IsPlayingAudio() || audioManager.GetAudioQueueCount() > 0))
+                if (audioManager != null && audioManager.IsPlayingAudio())
                 {
-                    Debug.LogWarning("[RealtimeClient] Ignoring 'buffer too small' error because audio playback is active or audio is queued.");
+                    Debug.LogWarning("[RealtimeClient] Ignoring 'buffer too small' error because audio playback is active.");
                     return; // Do not propagate error, just log and continue
                 }
 

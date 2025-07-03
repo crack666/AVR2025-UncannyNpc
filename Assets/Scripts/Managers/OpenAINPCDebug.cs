@@ -97,7 +97,7 @@ namespace Managers
             {
                 info.AppendLine("🎤 Audio Manager:");
                 info.AppendLine($"  Recording: {audioManager.IsRecording}");
-                info.AppendLine($"  VAD Active: {audioManager.VoiceDetected}");
+                info.AppendLine($"  Playing Audio: {audioManager.IsPlayingAudio()}");
                 info.AppendLine($"  Microphone: {audioManager.CurrentMicrophone ?? "None"}");
             }
             else
