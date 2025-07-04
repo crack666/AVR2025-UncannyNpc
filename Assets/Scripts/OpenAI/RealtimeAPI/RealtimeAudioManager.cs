@@ -29,15 +29,12 @@ namespace OpenAI.RealtimeAPI
         [SerializeField] private float noiseGateThreshold = 0.01f;
         
         [Header("Audio Playback Settings")]
-        [SerializeField] private int streamBufferSize = 1024; // FIXED: Increased from 128 to 1024 for smooth playback
-        
-        [Header("Adaptive Audio Settings")]
-        [SerializeField] private bool useAdaptiveBuffering = false; // TEMPORARILY DISABLED - causing buffer issues
-        [SerializeField] private int[] adaptiveBufferSizes = { 512, 1024, 2048, 4096 }; // Buffer size options for adaptation
-        
-        [Header("Performance Monitoring")]
-        [SerializeField] private bool enablePerformanceMonitoring = true;
-        [SerializeField] private float performanceCheckInterval = 5.0f; // Check every 5 seconds
+        [SerializeField] private int streamBufferSize = 1024; // Fixed buffer size for audio streaming
+        [Tooltip("Audio stream buffer size in samples. Recommended values:\n" +
+                 "• 512: Lower latency but may cause audio stuttering on slower systems\n" +
+                 "• 1024: Good balance of latency and stability (recommended)\n" +
+                 "• 2048: Higher latency but more stable on lower-end systems\n" +
+                 "• 4096: Very stable but noticeable latency")]
         
         [Header("Events")]
         public UnityEvent OnRecordingStarted;
@@ -59,18 +56,25 @@ namespace OpenAI.RealtimeAPI
         private int chunkSampleCount;
         private Coroutine recordingCoroutine;
         
-        // Adaptive Audio Performance Management
-        private int currentBufferSizeIndex = 1; // Start with 1024
-        private float lastPerformanceCheck = 0f;
-        private int audioDropoutCount = 0;
-        private int performanceCheckCount = 0;
-        
         // === GAPLESS STREAMING IMPLEMENTATION (OpenAI Reference) ===
         private Queue<StreamBuffer> streamOutputBuffers = new Queue<StreamBuffer>();
         private StreamBuffer currentStreamWriteBuffer;
         private int streamWriteOffset = 0;
         private bool streamHasStarted = false;
-        private bool streamHasInterrupted = false;
+        private bool _streamHasInterrupted = false;
+        private bool streamHasInterrupted 
+        { 
+            get => _streamHasInterrupted;
+            set 
+            {
+                if (_streamHasInterrupted != value)
+                {
+                    Debug.Log($"[GAPLESS] streamHasInterrupted changed: {_streamHasInterrupted} -> {value} at {Time.time}");
+                    Debug.Log($"[GAPLESS] Stack trace: {System.Environment.StackTrace}");
+                }
+                _streamHasInterrupted = value;
+            }
+        }
         private Dictionary<string, int> streamTrackSampleOffsets = new Dictionary<string, int>();
         private AudioClip streamAudioClip;
         private float[] streamAudioData;
@@ -263,12 +267,6 @@ namespace OpenAI.RealtimeAPI
         {
             if (!isInitialized) return;
             
-            // Monitor audio performance if enabled (but NOT adaptive buffering)
-            if (enablePerformanceMonitoring && !useAdaptiveBuffering)
-            {
-                MonitorAudioPerformance();
-            }
-            
             // ZUSÄTZLICHE SICHERUNG: Prüfe ob AudioSource aufgehört hat zu spielen
             // aber das System denkt noch, dass Audio läuft
             if (streamHasStarted && playbackAudioSource != null && 
@@ -279,10 +277,13 @@ namespace OpenAI.RealtimeAPI
                 OnAudioPlaybackFinished?.Invoke();
             }
             
-            // SMART COMPLETION DETECTION: If stream was started but no new buffers for a while
-            if (streamHasStarted && streamOutputBuffers.Count == 0 && Time.time - lastBufferAddTime > 1.0f)
+            // IMPROVED COMPLETION DETECTION: Only finish when AudioSource actually stops playing
+            // AND we have no more buffers AND we haven't received new audio for a reasonable time
+            if (streamHasStarted && streamOutputBuffers.Count == 0 && 
+                playbackAudioSource != null && !playbackAudioSource.isPlaying &&
+                Time.time - lastBufferAddTime > 2.0f) // Increased timeout to 2 seconds
             {
-                Log("[GAPLESS] Stream appears complete - no new buffers for 1 second, triggering finish");
+                Log("[GAPLESS] Stream truly complete - AudioSource stopped and no buffers for 2 seconds, triggering finish");
                 streamHasStarted = false;
                 OnAudioPlaybackFinished?.Invoke();
             }
@@ -691,6 +692,8 @@ namespace OpenAI.RealtimeAPI
         {
             bool wasPlaying = streamHasStarted;
             
+            Debug.Log($"[GAPLESS] StopGaplessStreaming called - setting streamHasInterrupted to true");
+            
             lock (streamLock)
             {
                 streamHasInterrupted = true;
@@ -949,7 +952,7 @@ namespace OpenAI.RealtimeAPI
         /// </summary>
         public void PlayReceivedAudioChunk(AudioChunk audioChunk)
         {
-            Debug.Log($"[AUDIO] PlayReceivedAudioChunk called. audioChunk valid: {audioChunk != null && audioChunk.IsValid()}");
+            Debug.Log($"[AUDIO] PlayReceivedAudioChunk called. audioChunk valid: {audioChunk != null && audioChunk.IsValid()}, streamHasInterrupted: {streamHasInterrupted}");
             if (audioChunk == null || !audioChunk.IsValid()) return;
             
             try
@@ -1097,98 +1100,71 @@ namespace OpenAI.RealtimeAPI
             Log("AudioManager state reset after error");
         }
         
-        #region Adaptive Audio Performance Management
+        #region Audio Buffer Configuration
         
-        private void MonitorAudioPerformance()
-        {
-            // SIMPLIFIED: Only monitor performance, no adaptive buffering
-            if (Time.time - lastPerformanceCheck < performanceCheckInterval) return;
-            lastPerformanceCheck = Time.time;
-            
-            // Just log quality issues for debugging - no buffer changes
-            bool hasQualityIssues = CheckAudioQualityIssues();
-            
-            if (hasQualityIssues)
-            {
-                Debug.LogWarning($"[AudioManager] Audio quality issue detected (monitoring only - no automatic changes)");
-            }
-        }
+        /// <summary>
+        /// Configure the audio buffer size for optimal performance.
+        /// 
+        /// Buffer Size Guidelines:
+        /// - 512: Low latency but may stutter on slower systems
+        /// - 1024: Recommended balance of latency and stability
+        /// - 2048: Higher latency but more stable for lower-end systems  
+        /// - 4096: Very stable but noticeable latency
+        /// 
+        /// Consider your target hardware and acceptable latency when choosing.
+        /// </summary>
+        [ContextMenu("Set Buffer Size - 512 (Low Latency)")]
+        public void SetBufferSize512() => SetBufferSize(512);
         
-        private bool CheckAudioQualityIssues()
-        {
-            // Check various indicators of audio quality issues
-            
-            // 1. Check if audio stream has issues - BUT only if we expect audio to be playing
-            if (IsPlayingAudio() && streamHasStarted && streamOutputBuffers.Count == 0)
-            {
-                Debug.LogWarning("[AudioManager] Audio stream empty while playing - possible buffer underrun");
-                return true;
-            }
-            
-            // 2. Check Unity's audio performance
-            if (AudioSettings.dspTime == 0)
-            {
-                Debug.LogWarning("[AudioManager] DSP time is zero - audio system may be struggling");
-                return true;
-            }
-            
-            // 3. Check frame rate (low FPS can affect audio)
-            if (Time.unscaledDeltaTime > 0.05f) // More than 50ms frame time (< 20 FPS)
-            {
-                Debug.LogWarning("[AudioManager] Low frame rate detected - may affect audio quality");
-                return true;
-            }
-            
-            return false;
-        }
+        [ContextMenu("Set Buffer Size - 1024 (Recommended)")]
+        public void SetBufferSize1024() => SetBufferSize(1024);
         
-        private void AdaptBufferSize(bool increase)
+        [ContextMenu("Set Buffer Size - 2048 (Stable)")]
+        public void SetBufferSize2048() => SetBufferSize(2048);
+        
+        [ContextMenu("Set Buffer Size - 4096 (Very Stable)")]
+        public void SetBufferSize4096() => SetBufferSize(4096);
+        
+        /// <summary>
+        /// Set a custom buffer size with validation
+        /// </summary>
+        public void SetBufferSize(int size)
         {
-            int oldIndex = currentBufferSizeIndex;
-            
-            if (increase && currentBufferSizeIndex < adaptiveBufferSizes.Length - 1)
+            if (size < 128 || size > 8192)
             {
-                currentBufferSizeIndex++;
-            }
-            else if (!increase && currentBufferSizeIndex > 0)
-            {
-                currentBufferSizeIndex--;
-            }
-            else
-            {
-                return; // No change possible
+                Debug.LogWarning($"[AudioManager] Buffer size {size} is outside recommended range (128-8192). Using 1024 instead.");
+                size = 1024;
             }
             
-            int newBufferSize = adaptiveBufferSizes[currentBufferSizeIndex];
-            int oldBufferSize = adaptiveBufferSizes[oldIndex];
+            // Ensure power of 2 for optimal performance
+            if ((size & (size - 1)) != 0)
+            {
+                Debug.LogWarning($"[AudioManager] Buffer size {size} is not a power of 2. This may cause performance issues.");
+            }
             
-            Debug.Log($"[AudioManager] Adapting buffer size: {oldBufferSize} -> {newBufferSize} ({(increase ? "increased" : "decreased")} for {(increase ? "stability" : "lower latency")})");
+            streamBufferSize = size;
+            Debug.Log($"[AudioManager] Audio buffer size set to {streamBufferSize} samples");
             
-            // Apply new buffer size
-            streamBufferSize = newBufferSize;
-            
-            // If currently streaming, restart with new buffer size
+            // If currently streaming, the change will take effect on next audio start
             if (IsPlayingAudio())
             {
-                Debug.Log("[AudioManager] Restarting audio stream with new buffer size");
-                // Note: In practice, you might want to do this more gracefully
+                Debug.Log("[AudioManager] Buffer size change will take effect on next audio stream");
             }
         }
         
-        [ContextMenu("Force Audio Performance Check")]
-        public void ForcePerformanceCheck()
-        {
-            MonitorAudioPerformance();
-        }
+        /// <summary>
+        /// Get current buffer size information
+        /// </summary>
+        public int GetCurrentBufferSize() => streamBufferSize;
         
-        [ContextMenu("Reset Adaptive Settings")]
-        public void ResetAdaptiveSettings()
+        /// <summary>
+        /// Get estimated latency based on current buffer size
+        /// </summary>
+        public float GetEstimatedLatencyMs()
         {
-            currentBufferSizeIndex = 1; // Reset to 1024
-            audioDropoutCount = 0;
-            performanceCheckCount = 0;
-            streamBufferSize = adaptiveBufferSizes[currentBufferSizeIndex];
-            Debug.Log($"[AudioManager] Adaptive settings reset. Buffer size: {streamBufferSize}");
+            // Latency = buffer size / sample rate * 1000ms
+            // Using 24000Hz as the standard sample rate for OpenAI audio
+            return (float)streamBufferSize / 24000f * 1000f;
         }
         
         #endregion
@@ -1207,17 +1183,9 @@ namespace OpenAI.RealtimeAPI
             Debug.Log($"Current Microphone: {currentMicrophone}");
             
             // Settings
-            Debug.Log($"Stream Buffer Size: {streamBufferSize}");
+            Debug.Log($"Stream Buffer Size: {streamBufferSize} samples");
+            Debug.Log($"Estimated Latency: {GetEstimatedLatencyMs():F1}ms");
             Debug.Log($"Gapless Streaming: ENABLED (always)");
-            Debug.Log($"Adaptive Buffering: {useAdaptiveBuffering}");
-            
-            // Performance
-            if (useAdaptiveBuffering)
-            {
-                Debug.Log($"Current Buffer Size Index: {currentBufferSizeIndex}");
-                Debug.Log($"Audio Dropout Count: {audioDropoutCount}");
-                Debug.Log($"Performance Check Count: {performanceCheckCount}");
-            }
             
             // Audio Sources
             if (microphoneAudioSource != null)
@@ -1242,9 +1210,48 @@ namespace OpenAI.RealtimeAPI
             var audioConfig = AudioSettings.GetConfiguration();
             Debug.Log($"Unity Audio: {audioConfig.sampleRate}Hz, DSP: {audioConfig.dspBufferSize}, Voices: {audioConfig.numRealVoices}");
             
+            // Buffer configuration recommendations
+            Debug.Log($"Buffer Configuration:");
+            Debug.Log($"  Current: {streamBufferSize} samples ({GetEstimatedLatencyMs():F1}ms latency)");
+            if (streamBufferSize < 512)
+                Debug.LogWarning("  ⚠️ Very small buffer - may cause audio stuttering");
+            else if (streamBufferSize > 4096)
+                Debug.LogWarning("  ⚠️ Very large buffer - high latency");
+            else
+                Debug.Log("  ✅ Buffer size in recommended range");
+            
             Debug.Log("=== END DIAGNOSTICS ===");
         }
         
         #endregion
+
+        /// <summary>
+        /// Reset gapless streaming state after session restart
+        /// This clears the interruption flag and allows new audio to be played
+        /// </summary>
+        public void ResetGaplessStreamingAfterRestart()
+        {
+            Debug.Log($"[GAPLESS] ResetGaplessStreamingAfterRestart called - streamHasInterrupted before reset: {streamHasInterrupted}");
+            
+            lock (streamLock)
+            {
+                streamHasInterrupted = false;
+                streamHasStarted = false;
+                streamOutputBuffers.Clear();
+                streamTrackSampleOffsets.Clear();
+                streamWriteOffset = 0;
+                lastBufferAddTime = Time.time;
+            }
+            
+            // Ensure the playback AudioSource is properly configured for gapless streaming
+            if (playbackAudioSource != null && streamAudioClip != null)
+            {
+                playbackAudioSource.clip = streamAudioClip;
+                playbackAudioSource.loop = true;
+                // Don't start playing yet - wait for first audio chunk
+            }
+            
+            Debug.Log($"[GAPLESS] Reset gapless streaming state after session restart - streamHasInterrupted after reset: {streamHasInterrupted}");
+        }
     }
 }

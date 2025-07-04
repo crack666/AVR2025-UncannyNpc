@@ -382,6 +382,34 @@ public class OpenAISettings : ScriptableObject
 }
 ```
 
+### **Audio Buffer Configuration Guidelines**
+
+```csharp
+[Header("Audio Playback Settings")]
+[SerializeField] private int streamBufferSize = 1024; // Fixed buffer size for audio streaming
+[Tooltip("Audio stream buffer size in samples. Recommended values:\n" +
+         "• 512: Lower latency but may cause audio stuttering on slower systems\n" +
+         "• 1024: Good balance of latency and stability (recommended)\n" +
+         "• 2048: Higher latency but more stable for lower-end systems\n" +
+         "• 4096: Very stable but noticeable latency")]
+```
+
+**Buffer Size Impact:**
+- **Latency**: Buffer size ÷ 24000 Hz × 1000 = milliseconds delay
+- **Stability**: Larger buffers = fewer dropouts but higher latency  
+- **Performance**: Power of 2 values (512, 1024, 2048, 4096) are optimal
+
+**Recommendations by System:**
+- **High-end systems**: 512 samples (21ms latency)
+- **Most systems**: 1024 samples (43ms latency) - **DEFAULT**
+- **Lower-end systems**: 2048 samples (85ms latency)
+- **Very constrained**: 4096 samples (171ms latency)
+
+**Removed Complexity:**
+- ❌ Adaptive buffering system (caused instability)
+- ❌ Performance monitoring (moved to AudioDiagnostics)
+- ✅ Simple, configurable fixed buffer sizes with clear guidance
+
 ---
 
 ## 🔧 Extending the System

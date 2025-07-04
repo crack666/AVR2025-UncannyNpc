@@ -16,11 +16,25 @@ namespace Diagnostics
         [SerializeField] private float testDuration = 3.0f;
         [SerializeField] private int testSampleRate = 24000;
         
+        // Real-time monitoring
+        [Header("Real-time Monitoring")]
+        [SerializeField] private bool enableRealtimeMonitoring = false;
+        [SerializeField] private float monitoringInterval = 5.0f;
+        private float lastMonitoringCheck = 0f;
+        
         private void Start()
         {
             if (runDiagnosticsOnStart)
             {
                 RunFullDiagnostics();
+            }
+        }
+        
+        private void Update()
+        {
+            if (enableRealtimeMonitoring)
+            {
+                MonitorAudioPerformance();
             }
         }
         
@@ -229,6 +243,137 @@ namespace Diagnostics
             }
         }
         
+        #region Real-time Audio Performance Monitoring
+        
+        /// <summary>
+        /// Monitor audio performance for quality issues
+        /// </summary>
+        private void MonitorAudioPerformance()
+        {
+            if (Time.time - lastMonitoringCheck < monitoringInterval) return;
+            lastMonitoringCheck = Time.time;
+            
+            // Check various indicators of audio quality issues
+            bool hasQualityIssues = CheckAudioQualityIssues();
+            
+            if (hasQualityIssues)
+            {
+                Debug.LogWarning($"[AudioDiagnostics] Audio quality issue detected");
+            }
+        }
+        
+        /// <summary>
+        /// Check for various audio quality issues
+        /// </summary>
+        private bool CheckAudioQualityIssues()
+        {
+            bool hasIssues = false;
+            
+            // 1. Check Unity's audio performance
+            if (AudioSettings.dspTime == 0)
+            {
+                Debug.LogWarning("[AudioDiagnostics] DSP time is zero - audio system may be struggling");
+                hasIssues = true;
+            }
+            
+            // 2. Check frame rate (low FPS can affect audio)
+            if (Time.unscaledDeltaTime > 0.05f) // More than 50ms frame time (< 20 FPS)
+            {
+                Debug.LogWarning("[AudioDiagnostics] Low frame rate detected - may affect audio quality");
+                hasIssues = true;
+            }
+            
+            // 3. Check for audio listener conflicts
+            int listenerCount = FindObjectsByType<AudioListener>(FindObjectsSortMode.None).Length;
+            if (listenerCount != 1)
+            {
+                Debug.LogWarning($"[AudioDiagnostics] Audio listener count is {listenerCount} (should be 1)");
+                hasIssues = true;
+            }
+            
+            // 4. Check system memory pressure
+            long memoryUsage = System.GC.GetTotalMemory(false);
+            if (memoryUsage > 500_000_000) // 500MB
+            {
+                Debug.LogWarning($"[AudioDiagnostics] High memory usage detected: {memoryUsage / 1_000_000}MB");
+                hasIssues = true;
+            }
+            
+            return hasIssues;
+        }
+        
+        /// <summary>
+        /// Run comprehensive audio diagnostics including RealtimeAudioManager state
+        /// </summary>
+        [ContextMenu("Run Audio Manager Diagnostics")]
+        public void RunAudioManagerDiagnostics()
+        {
+            Debug.Log("=== AUDIO MANAGER DIAGNOSTICS ===");
+            
+            // Try to find RealtimeAudioManager in scene
+            var audioManager = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeAudioManager>();
+            if (audioManager == null)
+            {
+                Debug.LogWarning("RealtimeAudioManager not found in scene");
+                return;
+            }
+            
+            // Use reflection to get private fields for diagnostics
+            var type = audioManager.GetType();
+            
+            // Get public properties and fields
+            Debug.Log($"Recording: {GetPrivateField(audioManager, "isRecording")}");
+            Debug.Log($"Current Microphone: {GetPrivateField(audioManager, "currentMicrophone")}");
+            
+            // Audio Sources
+            var micAudioSource = GetPrivateField(audioManager, "microphoneAudioSource") as AudioSource;
+            var playbackAudioSource = GetPrivateField(audioManager, "playbackAudioSource") as AudioSource;
+            
+            if (micAudioSource != null)
+            {
+                Debug.Log($"Microphone AudioSource: {micAudioSource.name} (Muted: {micAudioSource.mute})");
+            }
+            else
+            {
+                Debug.LogWarning("Microphone AudioSource: NOT FOUND");
+            }
+            
+            if (playbackAudioSource != null)
+            {
+                Debug.Log($"Playback AudioSource: {playbackAudioSource.name} (Volume: {playbackAudioSource.volume})");
+            }
+            else
+            {
+                Debug.LogWarning("Playback AudioSource: NOT FOUND");
+            }
+            
+            // Unity Audio Settings
+            var audioConfig = AudioSettings.GetConfiguration();
+            Debug.Log($"Unity Audio: {audioConfig.sampleRate}Hz, DSP: {audioConfig.dspBufferSize}, Voices: {audioConfig.numRealVoices}");
+            
+            Debug.Log("=== END AUDIO MANAGER DIAGNOSTICS ===");
+        }
+        
+        /// <summary>
+        /// Helper method to get private fields via reflection for diagnostics
+        /// </summary>
+        private object GetPrivateField(object obj, string fieldName)
+        {
+            try
+            {
+                var field = obj.GetType().GetField(fieldName, 
+                    System.Reflection.BindingFlags.NonPublic | 
+                    System.Reflection.BindingFlags.Instance);
+                return field?.GetValue(obj);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+        
+        #endregion
+        
         [ContextMenu("Print Recommended Settings")]
         public void PrintRecommendedSettings()
         {
@@ -240,9 +385,12 @@ namespace Diagnostics
             Debug.Log("  • Real Voice Count: 32");
             Debug.Log("");
             Debug.Log("RealtimeAudioManager Settings:");
-            Debug.Log("  • Use Gapless Streaming: TRUE (always enabled)");
-            Debug.Log("  • Stream Buffer Size: 1024");
-            Debug.Log("  • Noise Gate Threshold: 0.01");
+            Debug.Log("  • Stream Buffer Size: 1024 (recommended)");
+            Debug.Log("    - 512: Low latency but may stutter on slower systems");
+            Debug.Log("    - 1024: Good balance of latency and stability");
+            Debug.Log("    - 2048: Higher latency but more stable for lower-end systems");
+            Debug.Log("    - 4096: Very stable but noticeable latency");
+            Debug.Log("  • Gapless Streaming: ENABLED (always)");
             Debug.Log("  • Server-side VAD: Enabled via OpenAI API");
             Debug.Log("================================");
         }

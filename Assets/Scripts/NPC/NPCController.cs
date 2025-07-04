@@ -70,6 +70,9 @@ namespace NPC
             {
                 Debug.Log($"[NPCController] Restarting session for voice change for {npcName}");
                 
+                // Remember if we were listening before the voice change
+                bool wasListening = (currentState == NPCState.Listening);
+                
                 // Stop current session completely
                 SetState(NPCState.Connecting);
                 
@@ -86,16 +89,45 @@ namespace NPC
                 // Restart connection
                 var success = await realtimeClient.ConnectAsync();
                 
+                Debug.Log($"[NPCController] Voice change restart - ConnectAsync returned: {success}");
+                
                 if (success)
                 {
+                    Debug.Log($"[NPCController] Connection successful, resetting session state for {npcName}");
+                    
                     // Ensure clean state after successful voice change restart
                     realtimeClient.ResetSessionState();
+                    
+                    // CRITICAL: Reset audio streaming state BEFORE resuming any operations
+                    if (audioManager != null)
+                    {
+                        Debug.Log($"[NPCController] Calling ResetGaplessStreamingAfterRestart for {npcName}");
+                        audioManager.ResetGaplessStreamingAfterRestart();
+                    }
+                    else
+                    {
+                        Debug.LogError($"[NPCController] audioManager is null - cannot reset gapless streaming for {npcName}");
+                    }
+                    
                     Debug.Log($"[NPCController] Session restarted successfully for voice change for {npcName}");
-                    SetState(NPCState.Idle);
+                    
+                    // Auto-resume listening if we were listening before voice change
+                    if (wasListening)
+                    {
+                        Debug.Log($"[NPCController] Auto-resuming listening after voice change for {npcName}");
+                        // Small delay to ensure everything is properly initialized
+                        await System.Threading.Tasks.Task.Delay(100);
+                        StartConversation();
+                    }
+                    else
+                    {
+                        SetState(NPCState.Idle);
+                        Debug.Log($"[NPCController] Voice change complete, NPC set to Idle for {npcName}");
+                    }
                 }
                 else
                 {
-                    Debug.LogError($"[NPCController] Failed to restart session for voice change for {npcName}");
+                    Debug.LogError($"[NPCController] Failed to restart connection for voice change for {npcName}");
                     SetState(NPCState.Error);
                 }
             }
@@ -169,10 +201,24 @@ namespace NPC
                 {
                     // Ensure clean state after successful connection
                     realtimeClient.ResetSessionState();
+                    
+                    // Reset audio streaming state for fresh connection
+                    if (audioManager != null)
+                    {
+                        audioManager.ResetGaplessStreamingAfterRestart();
+                    }
+                    
+                    Debug.Log($"[NPCController] Connected to OpenAI successfully for {npcName}");
+                    
+                    // Auto-start listening after successful connection
+                    SetState(NPCState.Idle);
+                    await System.Threading.Tasks.Task.Delay(100); // Small delay to ensure everything is ready
+                    StartConversation();
                 }
                 else
                 {
                     SetState(NPCState.Error);
+                    Debug.LogError($"[NPCController] Failed to connect to OpenAI for {npcName}");
                 }
             }
         }

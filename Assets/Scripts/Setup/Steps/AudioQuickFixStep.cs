@@ -83,45 +83,36 @@ namespace Setup.Steps
                 return;
             }
             
-            log("🎛️ Configuring RealtimeAudioManager for cross-system compatibility...");
+            log("🎛️ Configuring RealtimeAudioManager for optimal performance...");
             
             // Use reflection to set private fields for better compatibility
             var audioManagerType = audioManager.GetType();
             
-            // Enable adaptive buffering for different system capabilities
-            var useAdaptiveField = audioManagerType.GetField("useAdaptiveBuffering", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (useAdaptiveField != null)
-            {
-                useAdaptiveField.SetValue(audioManager, true);
-                log("   ✅ Adaptive buffering enabled");
-            }
-            
-            // Enable performance monitoring
-            var perfMonitoringField = audioManagerType.GetField("enablePerformanceMonitoring", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (perfMonitoringField != null)
-            {
-                perfMonitoringField.SetValue(audioManager, true);
-                log("   ✅ Performance monitoring enabled");
-            }
-            
-            // Set conservative initial buffer size for compatibility
+            // Set optimal buffer size for stability
             var streamBufferField = audioManagerType.GetField("streamBufferSize", 
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             if (streamBufferField != null)
             {
-                streamBufferField.SetValue(audioManager, 2048); // Conservative starting point
-                log("   ✅ Stream buffer size set to 2048 (conservative)");
+                streamBufferField.SetValue(audioManager, 1024); // Recommended stable size
+                log("   ✅ Stream buffer size set to 1024 (recommended)");
             }
             
-            // Optimize VAD threshold for different microphone sensitivities
-            var vadThresholdField = audioManagerType.GetField("vadThreshold", 
+            // Optimize noise gate threshold for better microphone handling
+            var noiseGateField = audioManagerType.GetField("noiseGateThreshold", 
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (vadThresholdField != null)
+            if (noiseGateField != null)
             {
-                vadThresholdField.SetValue(audioManager, 0.025f); // Slightly higher for noise immunity
-                log("   ✅ VAD threshold optimized for noise immunity");
+                noiseGateField.SetValue(audioManager, 0.02f); // Slightly higher for noise immunity
+                log("   ✅ Noise gate threshold optimized");
+            }
+            
+            // Ensure noise gate is enabled
+            var enableNoiseGateField = audioManagerType.GetField("enableNoiseGate", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (enableNoiseGateField != null)
+            {
+                enableNoiseGateField.SetValue(audioManager, true);
+                log("   ✅ Noise gate enabled");
             }
             
             log("   ✅ RealtimeAudioManager configured successfully");

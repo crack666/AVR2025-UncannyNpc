@@ -207,7 +207,8 @@ If this project helps you create amazing NPCs, please:
 - ✅ **Manual Commits Eliminated**: Removed all `input_audio_buffer.commit` calls (200+ lines)
 - ✅ **OpenAI-Compliant Processing**: Only `response.create` needed - OpenAI handles commits internally
 - ✅ **Zero "Buffer Too Small" Errors**: Fixed through proper API usage patterns
-- ✅ **Adaptive Buffering Disabled**: Fixed 1024-sample buffers for maximum stability
+- ✅ **Simplified Buffer Configuration**: Fixed-size buffers (512/1024/2048/4096) with clear latency guidance
+- ✅ **Adaptive Buffering Removed**: Eliminated complex auto-adaptation system for stability
 
 #### **⚡ Production-Ready Improvements**
 - ✅ **Event Aggregation System**: Reduces debug log spam by 90% (following OpenAI patterns)
