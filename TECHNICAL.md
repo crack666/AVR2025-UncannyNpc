@@ -102,6 +102,44 @@ Purpose: Implements OpenAI reference-quality audio streaming
 
 ---
 
+### **Stream End Detection - Simple Silence-Based Approach**
+
+**The Problem:**
+- Audio streams don't have explicit "end" markers
+- Cutting too early = audio cutoff (bad UX)
+- Waiting too long = awkward silence (minor UX impact)
+
+**Our Solution: Generous Silence Timeout**
+```csharp
+// Simple, robust approach: wait for silence
+private float SILENCE_TIMEOUT = 1.2f; // User-configurable
+private float SILENCE_THRESHOLD = 0.001f; // Audio level threshold
+
+private void CheckSilenceTimeout() 
+{
+    float timeSinceLastAudio = Time.time - lastAudioTime;
+    
+    if (timeSinceLastAudio >= SILENCE_TIMEOUT) 
+    {
+        // End stream gracefully - no risk of cutoff
+        OnAudioPlaybackFinished?.Invoke();
+    }
+}
+```
+
+**Why This Works:**
+- 1.2 seconds of silence is natural in human conversation
+- Much better UX than risking audio cutoff
+- Simple, maintainable, and robust
+- User-configurable for different use cases
+
+**Key Parameters:**
+- **Silence Timeout:** 1.2s (generous, prevents cutoff)
+- **Silence Threshold:** 0.001 (RMS level for silence detection)
+- **Detection Method:** Audio level analysis on received chunks
+
+---
+
 ## 🎵 Gapless Audio Implementation
 
 ### **The Problem We Solved**

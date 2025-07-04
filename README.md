@@ -33,7 +33,9 @@ Create **intelligent NPCs** that can have **natural voice conversations** in Uni
 ### 🗣️ **Real-time Voice Chat**
 - **Gapless audio streaming** - Zero lag, natural conversations  
 - **Server-side VAD** - Intelligent turn-taking via OpenAI API
+- **Robust stream end detection** - Generous silence timeout prevents audio cutoff
 - **Multiple voice models** - Choose personality through voice
+- **User-configurable audio** - Buffer size, silence timeout, thresholds
 - **Robust error handling** - Production-ready reliability
 
 ### 🎭 **Realistic Avatars** 
