@@ -28,14 +28,13 @@ namespace OpenAI.RealtimeAPI
         [SerializeField] private bool enableNoiseGate = true;
         [SerializeField] private float noiseGateThreshold = 0.01f;
         
-        [Header("Voice Activity Detection")]
-        [SerializeField] private bool enableVAD = true;
-        [SerializeField] private float vadThreshold = 0.02f;
-        [SerializeField] private float vadSilenceDuration = 1.0f;
-        
         [Header("Audio Playback Settings")]
-        [SerializeField] private bool useGaplessStreaming = true; // Stream-based gapless playback
-        [SerializeField] private int streamBufferSize = 1024; // FIXED: Increased from 128 to 1024 for smooth playback
+        [SerializeField] private int streamBufferSize = 1024; // Fixed buffer size for audio streaming
+        [Tooltip("Audio stream buffer size in samples. Recommended values:\n" +
+                 "• 512: Lower latency but may cause audio stuttering on slower systems\n" +
+                 "• 1024: Good balance of latency and stability (recommended)\n" +
+                 "• 2048: Higher latency but more stable on lower-end systems\n" +
+                 "• 4096: Very stable but noticeable latency")]
         
         [Header("Events")]
         public UnityEvent OnRecordingStarted;
@@ -43,7 +42,6 @@ namespace OpenAI.RealtimeAPI
         public UnityEvent OnAudioPlaybackStarted;
         public UnityEvent OnAudioPlaybackFinished;
         public UnityEvent<float> OnMicrophoneLevelChanged;
-        public UnityEvent<bool> OnVoiceDetected;
         
         // Private Fields
         private AudioClip microphoneClip;
@@ -52,37 +50,63 @@ namespace OpenAI.RealtimeAPI
         private string currentMicrophone;
         private int lastMicrophonePosition;
         private float[] microphoneBuffer;
-        private int bufferPosition;
-        
-
-        // Voice Activity Detection
-        private bool voiceDetected;
-        private float lastVoiceTime;
-        private float currentMicrophoneLevel;
-        private Queue<float> audioLevelHistory;
-        private const int AUDIO_LEVEL_HISTORY_SIZE = 10;
-        
+        private int bufferPosition;        
         // Audio Processing
         private float[] processingBuffer;
         private int chunkSampleCount;
         private Coroutine recordingCoroutine;
-        // Audio Playback Queue (fallback system)
-        private Queue<AudioClip> audioPlaybackQueue = new Queue<AudioClip>();
-        private bool isPlayingAudio = false;
-        private Coroutine playbackCoroutine = null;
         
         // === GAPLESS STREAMING IMPLEMENTATION (OpenAI Reference) ===
         private Queue<StreamBuffer> streamOutputBuffers = new Queue<StreamBuffer>();
         private StreamBuffer currentStreamWriteBuffer;
         private int streamWriteOffset = 0;
         private bool streamHasStarted = false;
-        private bool streamHasInterrupted = false;
-        private bool audioPlaybackFinishedPending = false; // Flag für Update() Fallback
+        private bool _streamHasInterrupted = false;
+        private bool streamHasInterrupted 
+        { 
+            get => _streamHasInterrupted;
+            set 
+            {
+                if (_streamHasInterrupted != value)
+                {
+                    Debug.Log($"[GAPLESS] streamHasInterrupted changed: {_streamHasInterrupted} -> {value} at {Time.time}");
+                    Debug.Log($"[GAPLESS] Stack trace: {System.Environment.StackTrace}");
+                }
+                _streamHasInterrupted = value;
+            }
+        }
         private Dictionary<string, int> streamTrackSampleOffsets = new Dictionary<string, int>();
         private AudioClip streamAudioClip;
         private float[] streamAudioData;
+        private float lastBufferAddTime = 0f; // Track when last buffer was added
         private const int STREAM_LENGTH_SECONDS = 30; // Rolling buffer
         private readonly object streamLock = new object();
+        
+        // Anti-Stutter Buffering System
+        [Header("Anti-Stutter Buffering")]
+        [SerializeField] private int minBuffersBeforeStart = 3; // Minimum buffers before starting playback
+        [Tooltip("Number of audio buffers to accumulate before starting playback. Higher values reduce stuttering but increase latency.\n" +
+                 "• 1: Immediate playback (may stutter)\n" +
+                 "• 2-3: Good balance (recommended)\n" +
+                 "• 4-6: Very smooth but higher latency")]
+        
+        [Header("Stream End Detection")]
+        [SerializeField] private float silenceTimeoutSeconds = 1.2f; // How long to wait for silence before ending stream
+        [Tooltip("Time in seconds to wait for silence before ending audio stream. Higher values are safer but add delay.\n" +
+                 "• 0.5s: Fast but may cut off audio\n" +
+                 "• 1.0s: Good balance\n" +
+                 "• 1.5s: Very safe but slightly slower response")]
+        private bool isBuffering = false; // Are we currently buffering before playback?
+        
+        // Simple Silence-Based Stream End Detection
+        private float lastAudioTime = 0f; // When we last received audio data
+        private bool hasReceivedAudio = false; // Have we received any audio yet?
+        private bool responseComplete = false; // Has OpenAI indicated response is complete?
+        private bool buffersEmpty = false; // Are the audio buffers empty?
+        private float buffersEmptyTime = 0f; // When buffers became empty
+        
+        // Properties for easy access to user-configured values
+        private float SILENCE_TIMEOUT => silenceTimeoutSeconds;
         
         private struct StreamBuffer
         {
@@ -99,9 +123,8 @@ namespace OpenAI.RealtimeAPI
         // Public Properties
         public bool IsRecording => isRecording;
         public int BufferSampleCount => bufferPosition;
-        public float CurrentMicrophoneLevel => currentMicrophoneLevel;
         public string CurrentMicrophone => currentMicrophone;
-        public bool VoiceDetected => voiceDetected;
+
 
         
         // Thread-safe async recording stop
@@ -123,7 +146,6 @@ namespace OpenAI.RealtimeAPI
         // Async version that doesn't block main thread
         public async System.Threading.Tasks.Task StopRecordingAsync()
         {
-            Debug.Log($"[RealtimeAudioManager] StopRecordingAsync called. bufferPosition={bufferPosition}, isRecording={isRecording}");
             if (!isRecording) return;
 
             try
@@ -150,8 +172,6 @@ namespace OpenAI.RealtimeAPI
                     int minSamples = settings.SampleRate / 20; // 50ms minimum
                     if (bufferPosition >= minSamples)
                     {
-                        Debug.Log($"[RealtimeAudioManager] Processing remaining {bufferPosition} samples before commit.");
-                        
                         float[] lastSamples = new float[bufferPosition];
                         Array.Copy(microphoneBuffer, lastSamples, bufferPosition);
                         
@@ -166,18 +186,12 @@ namespace OpenAI.RealtimeAPI
                         // Wait for audio to be processed by API
                         await System.Threading.Tasks.Task.Delay(150).ConfigureAwait(false);
                         
-                        Debug.Log($"[RealtimeAudioManager] Remaining buffer sent successfully: {pcmData.Length} bytes");
-                    }
-                    else
-                    {
-                        Debug.Log($"[RealtimeAudioManager] Discarding too small buffer ({bufferPosition} samples < {minSamples} minimum)");
                     }
                     bufferPosition = 0;
                 }
 
                 // SIMPLIFIED: Following official OpenAI pattern - no manual commit needed
                 // The RealtimeClient.StopListening() will call CreateResponse() instead
-                Debug.Log($"[RealtimeAudioManager] StopRecordingAsync: Audio stopped, {pcmData?.Length ?? 0} bytes sent in final buffer");
                 
                 // No manual commit - let StopListening() handle response creation
 
@@ -215,7 +229,6 @@ namespace OpenAI.RealtimeAPI
                     if (Microphone.IsRecording(device))
                     {
                         Microphone.End(device);
-                        Debug.Log($"[RealtimeAudioManager] ForceStopAllRecording: Stopped microphone: {device}");
                     }
                 }
                 
@@ -223,7 +236,6 @@ namespace OpenAI.RealtimeAPI
                 if (Microphone.IsRecording(null))
                 {
                     Microphone.End(null);
-                    Debug.Log("[RealtimeAudioManager] ForceStopAllRecording: Stopped default microphone");
                 }
                 
                 // Stop coroutine
@@ -231,7 +243,6 @@ namespace OpenAI.RealtimeAPI
                 {
                     StopCoroutine(recordingCoroutine);
                     recordingCoroutine = null;
-                    Debug.Log("[RealtimeAudioManager] ForceStopAllRecording: Recording coroutine stopped");
                 }
                 
                 // Cleanup microphone clip
@@ -239,16 +250,14 @@ namespace OpenAI.RealtimeAPI
                 {
                     DestroyImmediate(microphoneClip);
                     microphoneClip = null;
-                    Debug.Log("[RealtimeAudioManager] ForceStopAllRecording: Microphone clip destroyed");
                 }
                 
                 // Reset all audio state
                 bufferPosition = 0;
                 lastMicrophonePosition = 0;
-                voiceDetected = false;
                 
-                // Clear audio queues
-                StopAllAudioPlayback();
+                // Clear audio streams
+                StopGaplessStreaming();
                 
                 Debug.Log("[RealtimeAudioManager] ForceStopAllRecording: All audio operations stopped and state reset");
             }
@@ -273,9 +282,6 @@ namespace OpenAI.RealtimeAPI
             {
                 realtimeClient = FindFirstObjectByType<RealtimeClient>();
             }
-            
-            audioLevelHistory = new Queue<float>();
-            Debug.Log("[RealtimeAudioManager] Awake: AudioManager created");
         }
         
         private void Start()
@@ -287,26 +293,50 @@ namespace OpenAI.RealtimeAPI
         {
             if (!isInitialized) return;
             
-            // Handle pending audio playback finished event (Fallback)
-            if (audioPlaybackFinishedPending)
-            {
-                audioPlaybackFinishedPending = false;
-                OnAudioPlaybackFinished?.Invoke();
-                Log("[GAPLESS] Audio playback finished - triggered from Update()");
-            }
-            
             // ZUSÄTZLICHE SICHERUNG: Prüfe ob AudioSource aufgehört hat zu spielen
             // aber das System denkt noch, dass Audio läuft
-            if (useGaplessStreaming && streamHasStarted && playbackAudioSource != null && 
+            if (streamHasStarted && playbackAudioSource != null && 
                 !playbackAudioSource.isPlaying && streamOutputBuffers.Count == 0)
             {
                 Log("[GAPLESS] SAFETY CHECK: AudioSource stopped but stream still active - triggering finish event");
                 streamHasStarted = false;
+                ResetStreamEndDetection();
                 OnAudioPlaybackFinished?.Invoke();
             }
             
-            UpdateMicrophoneLevel();
-            UpdateVoiceActivityDetection();
+            // ROBUST STREAM END DETECTION: AudioSource-based approach
+            // Only end when AudioSource actually stops AND buffers are empty
+            // BUFFER-AWARE SILENCE DETECTION
+            // Only start silence detection when:
+            // 1. Response is complete (no more chunks coming)
+            // 2. Audio buffers are empty (no more audio to play)
+            if (streamHasStarted && responseComplete)
+            {
+                // Check if buffers are empty
+                bool currentlyEmpty = streamOutputBuffers.Count == 0;
+                
+                if (currentlyEmpty && !buffersEmpty)
+                {
+                    // Buffers just became empty - start silence detection
+                    buffersEmpty = true;
+                    buffersEmptyTime = Time.time;
+                    Log($"[GAPLESS] Buffers empty after response.done - starting silence detection");
+                }
+                else if (!currentlyEmpty && buffersEmpty)
+                {
+                    // Buffers refilled - reset silence detection
+                    buffersEmpty = false;
+                    buffersEmptyTime = 0f;
+                    Log($"[GAPLESS] Buffers refilled - resetting silence detection");
+                }
+                
+                // Only run silence detection if buffers are empty
+                if (buffersEmpty)
+                {
+                    CheckSilenceTimeout();
+                }
+            }
+            
             
             if (isRecording)
             {
@@ -317,8 +347,15 @@ namespace OpenAI.RealtimeAPI
         private void OnDestroy()
         {
             StopRecording();
-            // Stoppe alle Playbacks und lösche dynamisch erzeugte AudioSources
-            StopAllAudioPlayback();
+            // Stoppe alle Playbacks
+            StopGaplessStreaming();
+            
+            // Cleanup event listeners
+            if (realtimeClient != null)
+            {
+                realtimeClient.OnAudioReceived.RemoveListener(PlayReceivedAudioChunk);
+                realtimeClient.OnResponseCompleted.RemoveListener(OnResponseCompleted);
+            }
             
             // Cleanup Gapless Streaming
             StopGaplessStreaming();
@@ -338,12 +375,10 @@ namespace OpenAI.RealtimeAPI
         
         private void OnEnable()
         {
-            Debug.Log("[RealtimeAudioManager] OnEnable: Registering event listeners");
         }
 
         private void OnDisable()
         {
-            Debug.Log("[RealtimeAudioManager] OnDisable: Removing event listeners");
         }
         
         #endregion
@@ -373,14 +408,12 @@ namespace OpenAI.RealtimeAPI
             // Setup Audio Buffers
             SetupAudioBuffers();
             
-            // Setup Gapless Streaming if enabled
-            if (useGaplessStreaming)
-            {
-                SetupGaplessStreaming();
-            }
+            // Setup Gapless Streaming
+            SetupGaplessStreaming();
             
             // Subscribe to RealtimeClient events
             realtimeClient.OnAudioReceived.AddListener(PlayReceivedAudioChunk);
+            realtimeClient.OnResponseCompleted.AddListener(OnResponseCompleted); // CRITICAL: Handle response completion
             
             isInitialized = true;
             
@@ -389,7 +422,7 @@ namespace OpenAI.RealtimeAPI
         
         private void SetupAudioSources()
         {
-            // Hinweis: Es wird empfohlen, die AudioSources im Editor fest zu verdrahten und im Inspector zuzuweisen.
+            // Hinweis: Es wird empfohlen, die AudioSources im Editor fest zuverdrahten und im Inspector zuzuweisen.
             // Nur wenn keine zugewiesen ist, wird eine neue erzeugt.
             if (microphoneAudioSource == null)
             {
@@ -492,6 +525,7 @@ namespace OpenAI.RealtimeAPI
             streamHasStarted = false;
             streamHasInterrupted = false;
             streamWriteOffset = 0;
+            lastBufferAddTime = Time.time; // Initialize buffer timer
             
             Log($"[GAPLESS] Stream initialized: {sampleRate}Hz, {totalSamples} samples, {STREAM_LENGTH_SECONDS}s buffer");
         }
@@ -502,16 +536,6 @@ namespace OpenAI.RealtimeAPI
         /// </summary>
         private void OnAudioRead(float[] data)
         {
-            if (!useGaplessStreaming)
-            {
-                // Fallback: silence
-                for (int i = 0; i < data.Length; i++)
-                {
-                    data[i] = 0f;
-                }
-                return;
-            }
-            
             lock (streamLock)
             {
                 if (streamHasInterrupted)
@@ -585,28 +609,14 @@ namespace OpenAI.RealtimeAPI
                     Log($"[GAPLESS] OnAudioRead filled {data.Length} samples. Remaining buffers: {streamOutputBuffers.Count}");
                 }
                 
-                // Log when we run out of buffers
+                // Log when we run out of buffers - but DON'T immediately finish
                 if (streamOutputBuffers.Count == 0 && streamHasStarted)
                 {
-                    Log("[GAPLESS] OnAudioRead: No buffers available, outputting silence");
+                    Log("[GAPLESS] OnAudioRead: No buffers available, outputting silence - but keeping stream alive");
                     
-                    // CRITICAL: Reset stream state and trigger audio finished event
-                    streamHasStarted = false;
-                    
-                    // ROBUSTERE LÖSUNG: Direct invoke on main thread + Fallback
-                    if (UnityMainThreadDispatcher.Instance != null)
-                    {
-                        UnityMainThreadDispatcher.EnqueueAction(() => {
-                            OnAudioPlaybackFinished?.Invoke();
-                            Log("[GAPLESS] Audio playback finished - ready for next recording");
-                        });
-                    }
-                    else
-                    {
-                        // Fallback: Set flag for Update() method to handle
-                        audioPlaybackFinishedPending = true;
-                        Log("[GAPLESS] Audio playback finished - will trigger on next Update()");
-                    }
+                    // DON'T reset stream state here - this happens too early!
+                    // The stream might just be temporarily empty but more audio is coming
+                    // Only the explicit StopGaplessStreaming() should trigger the finished event
                 }
                 
                 // Log if we have buffers but haven't started
@@ -622,8 +632,6 @@ namespace OpenAI.RealtimeAPI
         /// </summary>
         private void WriteAudioDataToStream(float[] float32Array, string trackId = null)
         {
-            if (!useGaplessStreaming) return;
-            
             lock (streamLock)
             {
                 if (currentStreamWriteBuffer.buffer == null)
@@ -642,6 +650,7 @@ namespace OpenAI.RealtimeAPI
                     {
                         // Buffer full - enqueue it
                         streamOutputBuffers.Enqueue(currentStreamWriteBuffer);
+                        lastBufferAddTime = Time.time; // Track when we added a buffer
                         
                         // Create new buffer
                         currentStreamWriteBuffer = new StreamBuffer(new float[streamBufferSize], trackId);
@@ -663,13 +672,6 @@ namespace OpenAI.RealtimeAPI
         {
             if (audioChunk == null || !audioChunk.IsValid()) return;
             
-            // CRITICAL: Start streaming immediately when first chunk arrives
-            if (!playbackAudioSource.isPlaying || playbackAudioSource.clip != streamAudioClip)
-            {
-                StartGaplessStreaming();
-                Log("[GAPLESS] Auto-started streaming on first chunk");
-            }
-            
             byte[] pcmData = audioChunk.audioData;
             if (pcmData.Length % 2 != 0) return;
             
@@ -683,7 +685,32 @@ namespace OpenAI.RealtimeAPI
                 float32Array[i] = int16Sample / 32768.0f; // Convert to -1.0 to 1.0
             }
             
+            // IMPORTANT: Signal that we received audio data (for silence detection)
+            OnAudioDataReceived();
+            
+            // Add data to stream buffers
             WriteAudioDataToStream(float32Array, trackId);
+            lastBufferAddTime = Time.time; // Track when we added audio data
+            
+            // ANTI-STUTTER BUFFERING: Only start playback after we have enough buffers
+            lock (streamLock)
+            {
+                if (!streamHasStarted && !isBuffering)
+                {
+                    isBuffering = true;
+                    Log($"[GAPLESS] Starting buffering phase - waiting for {minBuffersBeforeStart} buffers before playback");
+                }
+                
+                // Check if we should start playback (buffer count trigger)
+                if (isBuffering && streamOutputBuffers.Count >= minBuffersBeforeStart)
+                {
+                    TriggerBufferedPlayback("buffer count reached");
+                }
+                else if (isBuffering)
+                {
+                    Log($"[GAPLESS] Buffering in progress - {streamOutputBuffers.Count}/{minBuffersBeforeStart} buffers ready");
+                }
+            }
             
             //Log($"[GAPLESS] Added {sampleCount} samples to stream. Track: {trackId}");
         }
@@ -693,12 +720,6 @@ namespace OpenAI.RealtimeAPI
         /// </summary>
         private void StartGaplessStreaming()
         {
-            if (!useGaplessStreaming) 
-            {
-                Log("[GAPLESS] StartGaplessStreaming called but useGaplessStreaming=false");
-                return;
-            }
-            
             if (playbackAudioSource == null)
             {
                 LogError("[GAPLESS] StartGaplessStreaming failed: playbackAudioSource is null");
@@ -722,7 +743,7 @@ namespace OpenAI.RealtimeAPI
             playbackAudioSource.loop = true;
             playbackAudioSource.Play();
             
-            streamHasStarted = false;
+            streamHasStarted = true; // CRITICAL FIX: Set to true when started, not false!
             streamHasInterrupted = false;
             
             Log($"[GAPLESS] Started gapless audio streaming. AudioSource.isPlaying: {playbackAudioSource.isPlaying}, Clip: {streamAudioClip.name}");
@@ -736,17 +757,29 @@ namespace OpenAI.RealtimeAPI
         /// </summary>
         private void StopGaplessStreaming()
         {
-            if (!useGaplessStreaming) return;
+            bool wasPlaying = streamHasStarted;
+            
+            Debug.Log($"[GAPLESS] StopGaplessStreaming called - setting streamHasInterrupted to true");
             
             lock (streamLock)
             {
                 streamHasInterrupted = true;
+                streamHasStarted = false;
+                isBuffering = false; // Reset buffering state
                 streamOutputBuffers.Clear();
                 streamTrackSampleOffsets.Clear();
                 streamWriteOffset = 0;
+                ResetStreamEndDetection(); // Reset silence detection
             }
             
             Log("[GAPLESS] Stopped gapless audio streaming");
+            
+            // Trigger finished event if stream was actually playing
+            if (wasPlaying)
+            {
+                Log("[GAPLESS] Stream was playing - triggering OnAudioPlaybackFinished");
+                OnAudioPlaybackFinished?.Invoke();
+            }
         }
         
         #endregion
@@ -799,7 +832,6 @@ namespace OpenAI.RealtimeAPI
                 
                 OnRecordingStarted?.Invoke();
                 Log("Recording started");
-                Debug.Log("[RealtimeAudioManager] StartRecording: Recording started");
             }
             catch (Exception e)
             {
@@ -930,74 +962,6 @@ namespace OpenAI.RealtimeAPI
         
         #endregion
         
-        #region Voice Activity Detection
-        
-        private void UpdateMicrophoneLevel()
-        {
-            if (!isRecording || microphoneClip == null) return;
-            
-            // Berechne aktuelles Audio-Level
-            float level = 0f;
-            int position = Microphone.GetPosition(currentMicrophone);
-            
-            if (position > 0)
-            {
-                int sampleCount = Mathf.Min(1024, position);
-                float[] samples = new float[sampleCount];
-                microphoneClip.GetData(samples, position - sampleCount);
-                
-                for (int i = 0; i < samples.Length; i++)
-                {
-                    level += Mathf.Abs(samples[i]);
-                }
-                
-                level /= samples.Length;
-            }
-            
-            currentMicrophoneLevel = level;
-            OnMicrophoneLevelChanged?.Invoke(level);
-            
-            // Update Audio Level History
-            audioLevelHistory.Enqueue(level);
-            if (audioLevelHistory.Count > AUDIO_LEVEL_HISTORY_SIZE)
-            {
-                audioLevelHistory.Dequeue();
-            }
-        }
-        
-
-        
-        private void UpdateVoiceActivityDetection()
-        {
-            if (!enableVAD) return;
-            
-            bool currentVoiceDetected = currentMicrophoneLevel > vadThreshold;
-
-            if (currentVoiceDetected)
-            {
-                lastVoiceTime = Time.time;
-                if (!voiceDetected)
-                {
-                    voiceDetected = true;
-                    OnVoiceDetected?.Invoke(true);
-                    Log("Voice activity detected");
-                }
-            }
-            else if (voiceDetected && Time.time - lastVoiceTime > vadSilenceDuration)
-            {
-                voiceDetected = false;
-                OnVoiceDetected?.Invoke(false);
-                Log("Voice activity ended");
-                
-                // Thread-safe: Trigger stop recording via main thread
-                UnityMainThreadDispatcher.EnqueueAction(() => {
-                    TriggerStopRecordingAsync();
-                });
-            }
-        }
-        
-        #endregion
-        
         #region Audio Playback        /// <summary>
         /// Spielt empfangenen Audio-Clip ab
         /// </summary>
@@ -1005,16 +969,8 @@ namespace OpenAI.RealtimeAPI
         {
             if (audioClip == null || playbackAudioSource == null) return;
             
-            if (useGaplessStreaming)
-            {
-                // PRIMARY: Use gapless streaming system (OpenAI Reference approach)
-                PlayReceivedAudioGapless(audioClip);
-            }
-            else
-            {
-                // FALLBACK: Use traditional queue playback
-                PlayReceivedAudioQueued(audioClip);
-            }
+            // Use gapless streaming system (OpenAI Reference approach)
+            PlayReceivedAudioGapless(audioClip);
         }
         
         /// <summary>
@@ -1061,61 +1017,17 @@ namespace OpenAI.RealtimeAPI
         }
         
         /// <summary>
-        /// Spielt Audio über traditionelle Queue ab
-        /// </summary>
-        private void PlayReceivedAudioQueued(AudioClip audioClip)
-        {
-            try
-            {
-                // Thread-safe enqueue
-                lock (audioPlaybackQueue)
-                {
-                    audioPlaybackQueue.Enqueue(audioClip);
-                    Log($"[QUEUE] Enqueued audio clip: {audioClip.length:F2}s (Queue size: {audioPlaybackQueue.Count}, isPlaying: {isPlayingAudio})");
-                }
-                
-                // Starte Playback Coroutine falls nicht bereits aktiv
-                if (!isPlayingAudio && playbackCoroutine == null)
-                {
-                    Log("[QUEUE] Starting new playback queue coroutine");
-                    isPlayingAudio = true; // Set flag immediately to prevent race condition
-                    playbackCoroutine = StartCoroutine(PlaybackQueueCoroutine());
-                }
-                else
-                {
-                    Log("[QUEUE] Audio already playing, added to queue");
-                }
-            }
-            catch (Exception e)
-            {
-                LogError($"Failed to play audio: {e.Message}");
-                isPlayingAudio = false; // Reset flag on error
-                playbackCoroutine = null;
-            }
-        }
-        
-        /// <summary>
         /// Spielt empfangenen AudioChunk ab
         /// </summary>
         public void PlayReceivedAudioChunk(AudioChunk audioChunk)
         {
-            Debug.Log($"[AUDIO] PlayReceivedAudioChunk called. audioChunk valid: {audioChunk != null && audioChunk.IsValid()}");
+            Debug.Log($"[AUDIO] PlayReceivedAudioChunk called. audioChunk valid: {audioChunk != null && audioChunk.IsValid()}, streamHasInterrupted: {streamHasInterrupted}");
             if (audioChunk == null || !audioChunk.IsValid()) return;
             
             try
             {
-                if (useGaplessStreaming)
-                {
-                    // DIRECT: Feed AudioChunk directly to gapless stream (most efficient)
-                    AddAudioChunkToStream(audioChunk, $"chunk_{Time.time}");
-                }
-                else
-                {
-                    // FALLBACK: Convert to AudioClip for legacy systems
-                    var audioClip = audioChunk.ToAudioClip($"ReceivedAudio_{Time.time}");
-                    Debug.Log($"[AUDIO] Converted AudioChunk to AudioClip. Length: {audioClip.length:F2}s, Samples: {audioClip.samples}, Channels: {audioClip.channels}");
-                    PlayReceivedAudio(audioClip);
-                }
+                // DIRECT: Feed AudioChunk directly to gapless stream (most efficient)
+                AddAudioChunkToStream(audioChunk, $"chunk_{Time.time}");
             }
             catch (System.Exception ex)
             {
@@ -1123,144 +1035,6 @@ namespace OpenAI.RealtimeAPI
             }
         }
 
-        private IEnumerator PlaybackQueueCoroutine()
-        {
-            Log($"[QUEUE] Started audio queue processing");
-            
-            while (true)
-            {
-                AudioClip clip = null;
-                bool hasClip = false;
-                
-                // Get next clip from queue
-                try
-                {
-                    lock (audioPlaybackQueue)
-                    {
-                        if (audioPlaybackQueue.Count > 0)
-                        {
-                            clip = audioPlaybackQueue.Dequeue();
-                            hasClip = true;
-                        }
-                    }
-                }
-                catch (System.Exception ex)
-                {
-                    LogError($"[QUEUE] Error accessing queue: {ex.Message}");
-                    break;
-                }
-                
-                // Exit if no clips
-                if (!hasClip)
-                    break;
-                    
-                // Validate clip and audio source
-                if (clip == null)
-                {
-                    LogError("[QUEUE] Dequeued null AudioClip! Skipping.");
-                    continue;
-                }
-                
-                if (playbackAudioSource == null || !playbackAudioSource.gameObject.activeInHierarchy)
-                {
-                    LogError("[QUEUE] PlaybackAudioSource is null or inactive! Aborting playback.");
-                    break;
-                }
-                
-                // Play the audio clip
-                bool playbackSuccessful = false;
-                float clipLength = 0f;
-                AudioClip currentClip = null;
-                
-                try
-                {
-                    Log($"[QUEUE] Playing audio clip: {clip.length:F2}s");
-                    
-                    if (playbackAudioSource.isPlaying)
-                    {
-                        Log("[QUEUE] Stopping previous audio");
-                        playbackAudioSource.Stop();
-                    }
-                    
-                    playbackAudioSource.clip = clip;
-                    currentClip = clip; // Store reference for validation
-                    playbackAudioSource.Play();
-                    
-                    Debug.Log($"[AUDIO] Playback started for clip: {clip.name}, Length: {clip.length:F2}s");
-                    OnAudioPlaybackStarted?.Invoke();
-                    
-                    clipLength = clip.length;
-                    playbackSuccessful = true;
-                }
-                catch (System.Exception ex)
-                {
-                    LogError($"[QUEUE] Exception during playback setup: {ex.Message}");
-                    break;
-                }
-                
-                // Wait for clip to finish (outside try-catch)
-                if (playbackSuccessful)
-                {
-                    float elapsed = 0f;
-                    float checkInterval = 0.05f; // Increased check interval for stability
-                    float allowedEndTolerance = 0.1f; // Allow clip to end 100ms early
-                    
-                    while (elapsed < clipLength)
-                    {
-                        // More robust interruption check
-                        bool shouldStop = false;
-                        
-                        if (playbackAudioSource == null)
-                        {
-                            LogWarning($"[AUDIO] AudioSource became null at {elapsed:F2}s");
-                            shouldStop = true;
-                        }
-                        else if (!playbackAudioSource.gameObject.activeInHierarchy)
-                        {
-                            LogWarning($"[AUDIO] AudioSource GameObject became inactive at {elapsed:F2}s");
-                            shouldStop = true;
-                        }
-                        else if (playbackAudioSource.clip != currentClip)
-                        {
-                            LogWarning($"[AUDIO] AudioSource clip changed at {elapsed:F2}s - external interruption");
-                            shouldStop = true;
-                        }
-                        else if (!playbackAudioSource.isPlaying && elapsed < (clipLength - allowedEndTolerance))
-                        {
-                            // Only consider it interrupted if stopped significantly before end
-                            LogWarning($"[AUDIO] AudioSource stopped playing at {elapsed:F2}s of {clipLength:F2}s (tolerance: {allowedEndTolerance:F2}s)");
-                            shouldStop = true;
-                        }
-                        
-                        if (shouldStop)
-                            break;
-                        
-                        elapsed += checkInterval;
-                        yield return null; // CRITICAL FIX: Use yield return null instead of WaitForSeconds for gapless playback
-                    }
-                    
-                    // Log completion status
-                    if (elapsed >= (clipLength - allowedEndTolerance))
-                    {
-                        Debug.Log($"[AUDIO] Playback completed successfully for clip: {currentClip?.name}, Played: {elapsed:F2}s of {clipLength:F2}s");
-                    }
-                    else
-                    {
-                        Debug.Log($"[AUDIO] Playback interrupted for clip: {currentClip?.name}, Played: {elapsed:F2}s of {clipLength:F2}s");
-                    }
-                }
-                
-                // NO DELAY - go directly to next clip for gapless playback!
-                // yield return new WaitForSeconds() removed for seamless audio
-            }
-            
-            // Cleanup
-            isPlayingAudio = false;
-            playbackCoroutine = null;
-            OnAudioPlaybackFinished?.Invoke();
-            Log("[QUEUE] Audio queue processing completed");
-        }
-        
         #endregion
         
         #region Public Utility Methods
@@ -1293,25 +1067,15 @@ namespace OpenAI.RealtimeAPI
         
         /// <summary>
         /// Gibt aktuellen durchschnittlichen Audio-Level zurück
-        /// </summary>
-        public float GetAverageAudioLevel()
-        {
-            if (audioLevelHistory.Count == 0) return 0f;
-            
-            float sum = 0f;
-            foreach (float level in audioLevelHistory)
-            {
-                sum += level;
-            }
-            
-            return sum / audioLevelHistory.Count;
-        }
-          /// <summary>
+        /// <summary>
         /// Stoppt alle Audio-Wiedergabe und leert die Warteschlange
+        /// </summary>
+        /// <summary>
+        /// Stoppt alle Audio-Wiedergabe
         /// </summary>
         public void StopAllAudioPlayback()
         {
-            Log("[QUEUE] Stopping all audio playback and clearing queue");
+            Log("Stopping all audio playback");
             
             // Stop current playback
             if (playbackAudioSource != null && playbackAudioSource.isPlaying)
@@ -1319,36 +1083,10 @@ namespace OpenAI.RealtimeAPI
                 playbackAudioSource.Stop();
             }
             
-            // Stop coroutine if running
-            if (playbackCoroutine != null)
-            {
-                StopCoroutine(playbackCoroutine);
-                playbackCoroutine = null;
-            }
-            
-            // Clear queue
-            lock (audioPlaybackQueue)
-            {
-                int clearedCount = audioPlaybackQueue.Count;
-                audioPlaybackQueue.Clear();
-                Log($"[QUEUE] Cleared {clearedCount} audio clips from queue");
-            }
-            
-            // Reset state
-            isPlayingAudio = false;
+            // Stop gapless streaming
+            StopGaplessStreaming();
             
             OnAudioPlaybackFinished?.Invoke();
-        }
-        
-        /// <summary>
-        /// Gibt die aktuelle Anzahl der Audio-Clips in der Warteschlange zurück
-        /// </summary>
-        public int GetAudioQueueCount()
-        {
-            lock (audioPlaybackQueue)
-            {
-                return audioPlaybackQueue.Count;
-            }
         }
         
         /// <summary>
@@ -1356,7 +1094,7 @@ namespace OpenAI.RealtimeAPI
         /// </summary>
         public bool IsPlayingAudio()
         {
-            return isPlayingAudio && playbackAudioSource != null && playbackAudioSource.isPlaying;
+            return playbackAudioSource != null && playbackAudioSource.isPlaying;
         }
 
         /// <summary>
@@ -1372,8 +1110,6 @@ namespace OpenAI.RealtimeAPI
         /// </summary>
         public string GetGaplessStreamDebugInfo()
         {
-            if (!useGaplessStreaming) return "Gapless Streaming: DISABLED";
-            
             lock (streamLock)
             {
                 return $"Gapless Streaming: ENABLED | Started: {streamHasStarted} | " +
@@ -1382,28 +1118,6 @@ namespace OpenAI.RealtimeAPI
             }
         }
         
-        /// <summary>
-        /// Toggle Gapless Streaming Mode
-        /// </summary>
-        public void ToggleGaplessStreaming()
-        {
-            useGaplessStreaming = !useGaplessStreaming;
-            
-            if (useGaplessStreaming)
-            {
-                if (isInitialized)
-                {
-                    SetupGaplessStreaming();
-                    Log("[CONFIG] Gapless Streaming ENABLED");
-                }
-            }
-            else
-            {
-                StopGaplessStreaming();
-                Log("[CONFIG] Gapless Streaming DISABLED");
-            }
-        }
-
         #endregion
         #region Logging
         
@@ -1437,7 +1151,6 @@ namespace OpenAI.RealtimeAPI
         {
             Debug.LogWarning("[RealtimeAudioManager] ResetAfterError: Resetting audio state after error.");
             isRecording = false;
-            voiceDetected = false;
             bufferPosition = 0;
             lastMicrophonePosition = 0;
             if (recordingCoroutine != null)
@@ -1455,5 +1168,274 @@ namespace OpenAI.RealtimeAPI
             OnRecordingStopped?.Invoke();
             Log("AudioManager state reset after error");
         }
+        
+        #region Audio Buffer Configuration
+        
+        /// <summary>
+        /// Configure the audio buffer size for optimal performance.
+        /// 
+        /// Buffer Size Guidelines:
+        /// - 512: Low latency but may stutter on slower systems
+        /// - 1024: Recommended balance of latency and stability
+        /// - 2048: Higher latency but more stable for lower-end systems  
+        /// - 4096: Very stable but noticeable latency
+        /// 
+        /// Consider your target hardware and acceptable latency when choosing.
+        /// </summary>
+        [ContextMenu("Set Buffer Size - 512 (Low Latency)")]
+        public void SetBufferSize512() => SetBufferSize(512);
+        
+        [ContextMenu("Set Buffer Size - 1024 (Recommended)")]
+        public void SetBufferSize1024() => SetBufferSize(1024);
+        
+        [ContextMenu("Set Buffer Size - 2048 (Stable)")]
+        public void SetBufferSize2048() => SetBufferSize(2048);
+        
+        [ContextMenu("Set Buffer Size - 4096 (Very Stable)")]
+        public void SetBufferSize4096() => SetBufferSize(4096);
+        
+        /// <summary>
+        /// Set a custom buffer size with validation
+        /// </summary>
+        public void SetBufferSize(int size)
+        {
+            if (size < 128 || size > 8192)
+            {
+                Debug.LogWarning($"[AudioManager] Buffer size {size} is outside recommended range (128-8192). Using 1024 instead.");
+                size = 1024;
+            }
+            
+            // Ensure power of 2 for optimal performance
+            if ((size & (size - 1)) != 0)
+            {
+                Debug.LogWarning($"[AudioManager] Buffer size {size} is not a power of 2. This may cause performance issues.");
+            }
+            
+            streamBufferSize = size;
+            Debug.Log($"[AudioManager] Audio buffer size set to {streamBufferSize} samples");
+            
+            // If currently streaming, the change will take effect on next audio start
+            if (IsPlayingAudio())
+            {
+                Debug.Log("[AudioManager] Buffer size change will take effect on next audio stream");
+            }
+        }
+        
+        /// <summary>
+        /// Get current buffer size information
+        /// </summary>
+        public int GetCurrentBufferSize() => streamBufferSize;
+        
+        /// <summary>
+        /// Get estimated latency based on current buffer size
+        /// </summary>
+        public float GetEstimatedLatencyMs()
+        {
+            // Latency = buffer size / sample rate * 1000ms
+            // Using 24000Hz as the standard sample rate for OpenAI audio
+            return (float)streamBufferSize / 24000f * 1000f;
+        }
+        
+        #endregion
+        
+        #region Audio System Diagnostics
+        
+        [ContextMenu("Run Audio Diagnostics")]
+        public void RunAudioDiagnostics()
+        {
+            Debug.Log("=== AUDIO MANAGER DIAGNOSTICS ===");
+            
+            // Basic state
+            Debug.Log($"Recording: {isRecording}");
+            Debug.Log($"Playing Audio: {IsPlayingAudio()}");
+            Debug.Log($"Stream Buffer Count: {streamOutputBuffers.Count}");
+            Debug.Log($"Current Microphone: {currentMicrophone}");
+            
+            // Settings
+            Debug.Log($"Stream Buffer Size: {streamBufferSize} samples");
+            Debug.Log($"Estimated Latency: {GetEstimatedLatencyMs():F1}ms");
+            Debug.Log($"Gapless Streaming: ENABLED (always)");
+            
+            // Audio Sources
+            if (microphoneAudioSource != null)
+            {
+                Debug.Log($"Microphone AudioSource: {microphoneAudioSource.name} (Muted: {microphoneAudioSource.mute})");
+            }
+            else
+            {
+                Debug.LogWarning("Microphone AudioSource: NOT FOUND");
+            }
+            
+            if (playbackAudioSource != null)
+            {
+                Debug.Log($"Playback AudioSource: {playbackAudioSource.name} (Volume: {playbackAudioSource.volume})");
+            }
+            else
+            {
+                Debug.LogWarning("Playback AudioSource: NOT FOUND");
+            }
+            
+            // Unity Audio Settings
+            var audioConfig = AudioSettings.GetConfiguration();
+            Debug.Log($"Unity Audio: {audioConfig.sampleRate}Hz, DSP: {audioConfig.dspBufferSize}, Voices: {audioConfig.numRealVoices}");
+            
+            // Buffer configuration recommendations
+            Debug.Log($"Buffer Configuration:");
+            Debug.Log($"  Current: {streamBufferSize} samples ({GetEstimatedLatencyMs():F1}ms latency)");
+            if (streamBufferSize < 512)
+                Debug.LogWarning("  ⚠️ Very small buffer - may cause audio stuttering");
+            else if (streamBufferSize > 4096)
+                Debug.LogWarning("  ⚠️ Very large buffer - high latency");
+            else
+                Debug.Log("  ✅ Buffer size in recommended range");
+            
+            Debug.Log("=== END DIAGNOSTICS ===");
+        }
+        
+        #endregion
+
+        /// <summary>
+        /// Reset gapless streaming state after session restart
+        /// This clears the interruption flag and allows new audio to be played
+        /// </summary>
+        public void ResetGaplessStreamingAfterRestart()
+        {
+            Debug.Log($"[GAPLESS] ResetGaplessStreamingAfterRestart called - streamHasInterrupted before reset: {streamHasInterrupted}");
+            
+            lock (streamLock)
+            {
+                streamHasInterrupted = false;
+                streamHasStarted = false;
+                isBuffering = false; // Reset buffering state
+                streamOutputBuffers.Clear();
+                streamTrackSampleOffsets.Clear();
+                streamWriteOffset = 0;
+                lastBufferAddTime = Time.time;
+                ResetStreamEndDetection(); // Reset silence detection
+            }
+            
+            // Ensure the playback AudioSource is properly configured for gapless streaming
+            if (playbackAudioSource != null && streamAudioClip != null)
+            {
+                playbackAudioSource.clip = streamAudioClip;
+                playbackAudioSource.loop = true;
+                // Don't start playing yet - wait for buffering to complete
+            }
+            
+            Debug.Log($"[GAPLESS] Reset gapless streaming state after session restart - streamHasInterrupted after reset: {streamHasInterrupted}");
+        }
+        
+        /// <summary>
+        /// Handles OpenAI response completion - critical for anti-stutter buffering
+        /// This ensures that even short responses (like "Yes") are played even if buffer minimum isn't reached
+        /// </summary>
+        private void OnResponseCompleted()
+        {
+            Debug.Log("[AUDIO] OnResponseCompleted called - response finished, will enable silence detection when buffers empty");
+            
+            // Mark response as complete - this will enable silence detection once buffers are empty
+            responseComplete = true;
+            
+            // Use unified trigger - will only start if actually buffering and has audio
+            TriggerBufferedPlayback("response.done");
+        }
+        
+        /// <summary>
+        /// Unified trigger for starting buffered playback - can be called from multiple sources
+        /// This ensures buffer count and response.done triggers work independently without conflicts
+        /// </summary>
+        private void TriggerBufferedPlayback(string trigger)
+        {
+            Debug.Log($"[GAPLESS] TriggerBufferedPlayback called with trigger: {trigger}");
+            
+            lock (streamLock)
+            {
+                Debug.Log($"[GAPLESS] TriggerBufferedPlayback - isBuffering: {isBuffering}, streamHasStarted: {streamHasStarted}, bufferCount: {streamOutputBuffers.Count}");
+                
+                // Only trigger if we're actually buffering and not already started
+                if (isBuffering && !streamHasStarted && streamOutputBuffers.Count > 0)
+                {
+                    isBuffering = false;
+                    
+                    Log($"[GAPLESS] Buffering complete ({trigger}) - starting playbook with {streamOutputBuffers.Count} buffers");
+                    
+                    // Start playback immediately since this is called from audio processing which is on main thread
+                    StartGaplessStreaming();
+                }
+                else if (!isBuffering && streamHasStarted)
+                {
+                    Log($"[GAPLESS] Trigger '{trigger}' ignored - already started playing");
+                }
+                else if (!isBuffering)
+                {
+                    Log($"[GAPLESS] Trigger '{trigger}' ignored - not in buffering mode");
+                }
+                else if (streamOutputBuffers.Count == 0)
+                {
+                    Log($"[GAPLESS] Trigger '{trigger}' ignored - no audio buffers available");
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Reset stream end detection state
+        /// </summary>
+        private void ResetStreamEndDetection()
+        {
+            lastAudioTime = Time.time;
+            hasReceivedAudio = false;
+            responseComplete = false; // Reset response completion flag
+            buffersEmpty = false;
+            buffersEmptyTime = 0f;
+        }
+        
+        /// <summary>
+        /// Check if we've had silence for too long and should end the stream
+        /// Now only runs AFTER response is complete AND buffers are empty
+        /// </summary>
+        private void CheckSilenceTimeout()
+        {
+            float currentTime = Time.time;
+            float timeSinceBuffersEmpty = currentTime - buffersEmptyTime;
+            
+            if (timeSinceBuffersEmpty >= SILENCE_TIMEOUT)
+            {
+                Log($"[GAPLESS] Silence timeout reached ({timeSinceBuffersEmpty:F2}s > {SILENCE_TIMEOUT:F2}s) - ending stream");
+                
+                // End the stream gracefully
+                lock (streamLock)
+                {
+                    streamHasStarted = false;
+                    streamHasInterrupted = true;
+                }
+                
+                // Trigger the finished event
+                OnAudioPlaybackFinished?.Invoke();
+            }
+            else
+            {
+                // Optional: Log progress for debugging
+                if (Time.time % 0.5f < 0.1f) // Every ~0.5 seconds
+                {
+                    Log($"[GAPLESS] Silence detection active - {timeSinceBuffersEmpty:F2}s of {SILENCE_TIMEOUT:F2}s elapsed");
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Called when we receive new audio data - resets silence detection
+        /// </summary>
+        private void OnAudioDataReceived()
+        {
+            lastAudioTime = Time.time;
+            hasReceivedAudio = true;
+            
+            // Log audio data received (less verbose)
+            if (Time.time % 1f < 0.1f) // Every ~1 second
+            {
+                Log($"[GAPLESS] Audio data received - silence detection reset");
+            }
+        }
+        
     }
 }
