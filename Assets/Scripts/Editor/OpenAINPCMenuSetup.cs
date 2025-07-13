@@ -404,18 +404,13 @@ public class OpenAINPCMenuSetup : EditorWindow
 
         GUILayout.Space(10);
 
-        // Canvas Modus Auswahl
-        EditorGUILayout.LabelField("🖥️ UI Canvas Mode:", EditorStyles.boldLabel);
-        selectedCanvasMode = (CanvasMode)EditorGUILayout.EnumPopup(selectedCanvasMode);
-
-        if (selectedCanvasMode == CanvasMode.ScreenSpaceCamera)
-        {
-            selectedCamera = (Camera)EditorGUILayout.ObjectField("Camera", selectedCamera, typeof(Camera), true);
-        }
-        if (selectedCanvasMode == CanvasMode.WorldSpace)
-        {
-            worldCanvasScale = EditorGUILayout.FloatField("World Canvas Scale", worldCanvasScale);
-        }
+        // XR Canvas Information (WorldSpace forced for VR)
+        EditorGUILayout.LabelField("🥽 XR Canvas Mode:", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox("For VR/XR applications, Canvas mode is automatically set to World Space. This is required for proper XR interaction.", MessageType.Info);
+        
+        // Always show world canvas scale since we're always in WorldSpace
+        worldCanvasScale = EditorGUILayout.FloatField("World Canvas Scale", worldCanvasScale);
+        EditorGUILayout.LabelField("(Recommended: 0.01 for VR)", EditorStyles.miniLabel);
 
         GUILayout.Space(10);
 
@@ -517,12 +512,9 @@ public class OpenAINPCMenuSetup : EditorWindow
         string lipSyncDescription = GetLipSyncDescription();
         EditorGUILayout.LabelField($"  LipSync: {lipSyncDescription}", EditorStyles.miniLabel);
 
-        string canvasDescription = $"✅ {selectedCanvasMode}";
-        if (selectedCanvasMode == CanvasMode.ScreenSpaceCamera && selectedCamera != null)
-        {
-            canvasDescription += $" ({selectedCamera.name})";
-        }
+        string canvasDescription = "✅ World Space (XR Mode)";
         EditorGUILayout.LabelField($"  UI Mode: {canvasDescription}", EditorStyles.miniLabel);
+        EditorGUILayout.LabelField($"  Canvas Scale: {worldCanvasScale}", EditorStyles.miniLabel);
 
         string apiKeyStatus;
         if (openAIApiKey == "[EXISTING KEY FOUND]")
@@ -585,7 +577,7 @@ public class OpenAINPCMenuSetup : EditorWindow
             // Erweiterte Optionen an SetupUtility übergeben
             new
             {
-                canvasMode = selectedCanvasMode.ToString(),
+                canvasMode = "WorldSpace", // Always WorldSpace for XR
                 camera = selectedCamera,
                 worldCanvasScale = worldCanvasScale,
                 lipSyncStatus = lipSyncStatus.ToString()
@@ -595,15 +587,17 @@ public class OpenAINPCMenuSetup : EditorWindow
         if (allValid)
         {
             string message = lipSyncStatus == LipSyncStatus.ULipSyncInstalled ?
-                "🎉 Setup complete with Professional LipSync!\n\n" +
+                "🎉 XR Setup complete with Professional LipSync!\n\n" +
                 "💡 Next steps:\n" +
                 "• Configure your OpenAI API key\n" +
-                "• Test the NPC conversation\n" +
-                "• Calibrate uLipSync for optimal results" :
-                "✅ Setup complete with Basic LipSync!\n\n" +
+                "• Test the NPC conversation in VR\n" +
+                "• Calibrate uLipSync for optimal results\n" +
+                "• Add XR Ray Interactors to your hands/controllers" :
+                "✅ XR Setup complete with Basic LipSync!\n\n" +
                 "💡 Next steps:\n" +
                 "• Configure your OpenAI API key\n" +
-                "• Test the NPC conversation\n" +
+                "• Test the NPC conversation in VR\n" +
+                "• Add XR Ray Interactors to your hands/controllers\n" +
                 "• Optional: Install uLipSync for enhanced facial animation";
 
             EditorUtility.DisplayDialog("OpenAI NPC Setup Complete", message, "Got it!");
