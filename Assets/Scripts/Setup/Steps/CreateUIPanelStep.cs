@@ -21,6 +21,12 @@ namespace Setup.Steps
         {
             log("🖼️ Step 2.2: UI Panel Creation");
 
+            if (canvas == null)
+            {
+                log("❌ Canvas is null! Cannot create UI Panel.");
+                return;
+            }
+
             // --- Cleanup: Remove old panel ---
             var oldPanel = GameObject.Find("NPC UI Panel");
             if (oldPanel != null)

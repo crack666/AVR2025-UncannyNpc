@@ -116,21 +116,31 @@ namespace Setup
             System.Action<bool> onComplete,
             object options)
         {
-            string canvasMode = "ScreenSpaceOverlay";
+            string canvasMode = "WorldSpace"; // Default to WorldSpace for XR
             Camera camera = null;
             float worldCanvasScale = 0.01f;
             if (options != null)
             {
                 var t = options.GetType();
                 var cmProp = t.GetProperty("canvasMode");
-                if (cmProp != null) canvasMode = cmProp.GetValue(options)?.ToString() ?? canvasMode;
+                // Note: canvasMode from options is ignored in XR mode, always use WorldSpace
                 var camProp = t.GetProperty("camera");
                 if (camProp != null) camera = camProp.GetValue(options) as Camera;
                 var scaleProp = t.GetProperty("worldCanvasScale");
                 if (scaleProp != null) worldCanvasScale = (float)scaleProp.GetValue(options);
             }
+            
+            // Fallback: Find any camera if none provided
+            if (camera == null)
+            {
+                camera = Camera.main ?? Object.FindFirstObjectByType<Camera>();
+                if (camera != null)
+                {
+                    logAction?.Invoke($"✅ Using fallback camera: {camera.name}");
+                }
+            }
 
-            logAction?.Invoke($"[Setup] CanvasMode: {canvasMode}, Camera: {(camera ? camera.name : "null")}, WorldScale: {worldCanvasScale}");
+            logAction?.Invoke($"[XR Setup] Forced WorldSpace mode for VR, Camera: {(camera ? camera.name : "null")}, WorldScale: {worldCanvasScale}");
 
             // Step 1: Asset Discovery
             var assetStep = new FindOrValidateAssetsStep(openAISettings, targetAvatar, logAction);
@@ -139,7 +149,7 @@ namespace Setup
             targetAvatar = assetStep.TargetAvatar;
             bool avatarFound = assetStep.AvatarFound;
 
-            // Step 2: UI System (Canvas + Panel)
+            // Step 2: XR UI System (Canvas + Panel)
             var uiStep = new CreateUISystemStep(logAction);
             uiStep.ExecuteSync(uiPanelSize, uiPanelPosition, canvasMode, camera, worldCanvasScale);
             var uiCanvas = GameObject.Find("Canvas")?.GetComponent<Canvas>();
