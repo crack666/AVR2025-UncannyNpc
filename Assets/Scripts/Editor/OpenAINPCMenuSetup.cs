@@ -9,7 +9,7 @@ public class OpenAINPCMenuSetup : EditorWindow
     public static void ShowWindow()
     {
         OpenAINPCMenuSetup window = GetWindow<OpenAINPCMenuSetup>(true, "OpenAI NPC Quick Setup");
-        window.position = new Rect(Screen.width / 2 - 250, Screen.height / 2 - 300, 500, 600); // Erweiterte Größe
+        window.position = new Rect(Screen.width / 2 - 250, Screen.height / 2 - 300, 500, 800); // Erweiterte Größe
         window.InitAndCheckAvatar();
         window.CheckLipSyncStatus();
         window.Show();
@@ -561,7 +561,7 @@ public class OpenAINPCMenuSetup : EditorWindow
         Debug.Log("[OpenAI NPC Setup] UnityMainThreadDispatcher initialized successfully.");
         
         var openAISettings = Resources.Load<ScriptableObject>("OpenAISettings");
-        var uiPanelSize = new Vector2(800, 400);
+        var uiPanelSize = new Vector2(1200, 500);
         var uiPanelPosition = new Vector2(0, 0);
         bool allValid = false;
 
