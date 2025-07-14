@@ -129,6 +129,16 @@ namespace Setup
                 var scaleProp = t.GetProperty("worldCanvasScale");
                 if (scaleProp != null) worldCanvasScale = (float)scaleProp.GetValue(options);
             }
+            
+            // Fallback: Find any camera if none provided
+            if (camera == null)
+            {
+                camera = Camera.main ?? Object.FindFirstObjectByType<Camera>();
+                if (camera != null)
+                {
+                    logAction?.Invoke($"✅ Using fallback camera: {camera.name}");
+                }
+            }
 
             logAction?.Invoke($"[XR Setup] Forced WorldSpace mode for VR, Camera: {(camera ? camera.name : "null")}, WorldScale: {worldCanvasScale}");
 
