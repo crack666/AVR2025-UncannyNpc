@@ -28,6 +28,7 @@ namespace Setup.Steps
             log("🎛️ Step 2.6: UI Control Creation");
 
             CreateVoiceCheckboxes();
+            CreateSelectAvatarUI();
             CreateVolumeSlider();
             CreateEnableVADToggle();
             
@@ -165,6 +166,374 @@ namespace Setup.Steps
             // Keep VoiceDropdown property for compatibility (but it will be null)
             VoiceDropdown = null;
             log("✅ Created Voice Checkboxes (replaced dropdown).");
+        }
+
+        private void CreateSelectAvatarUI()
+        {
+            log("🎭 Creating Select Avatar UI...");
+
+            // Create the main Select Avatar container
+            GameObject selectAvatarGO = new GameObject("Select Avatar", typeof(RectTransform));
+            selectAvatarGO.transform.SetParent(panel.transform, false);
+            selectAvatarGO.layer = LayerMask.NameToLayer("UI");
+            
+            var selectAvatarRect = selectAvatarGO.GetComponent<RectTransform>();
+            selectAvatarRect.anchorMin = new Vector2(0.5f, 0.5f);
+            selectAvatarRect.anchorMax = new Vector2(0.5f, 0.5f);
+            selectAvatarRect.sizeDelta = new Vector2(400f, 120f);
+            selectAvatarRect.anchoredPosition = new Vector2(-61.3f, 180f); // Above voice checkboxes, matching original X offset
+            
+            // Create Buttons container
+            GameObject buttonsGO = new GameObject("Buttons", typeof(RectTransform));
+            buttonsGO.transform.SetParent(selectAvatarGO.transform, false);
+            buttonsGO.layer = LayerMask.NameToLayer("UI");
+            
+            var buttonsRect = buttonsGO.GetComponent<RectTransform>();
+            buttonsRect.anchorMin = new Vector2(0.5f, 0.5f);
+            buttonsRect.anchorMax = new Vector2(0.5f, 0.5f);
+            buttonsRect.sizeDelta = new Vector2(300f, 50f);
+            buttonsRect.anchoredPosition = new Vector2(0.02255409f, 1.149995f); // Original positioning
+            
+            // Create Images container
+            GameObject imagesGO = new GameObject("Images", typeof(RectTransform));
+            imagesGO.transform.SetParent(selectAvatarGO.transform, false);
+            imagesGO.layer = LayerMask.NameToLayer("UI");
+            
+            var imagesRect = imagesGO.GetComponent<RectTransform>();
+            imagesRect.anchorMin = new Vector2(0.5f, 0.5f);
+            imagesRect.anchorMax = new Vector2(0.5f, 0.5f);
+            imagesRect.sizeDelta = new Vector2(18.87f, 18.87f);
+            imagesRect.anchoredPosition = new Vector2(-55.1f, 12.9f); // Original positioning
+            
+            // Create Description Text
+            GameObject descriptionGO = new GameObject("Description_Text (TMP)", typeof(RectTransform));
+            descriptionGO.transform.SetParent(selectAvatarGO.transform, false);
+            descriptionGO.layer = LayerMask.NameToLayer("UI");
+            
+            var descriptionRect = descriptionGO.GetComponent<RectTransform>();
+            descriptionRect.anchorMin = new Vector2(0.5f, 0.5f);
+            descriptionRect.anchorMax = new Vector2(0.5f, 0.5f);
+            descriptionRect.sizeDelta = new Vector2(200f, 50f);
+            descriptionRect.anchoredPosition = new Vector2(-64.97759f, 22.150005f); // Original positioning
+            
+            // Add TextMeshProUGUI component
+            var descriptionText = descriptionGO.AddComponent<TMPro.TextMeshProUGUI>();
+            descriptionText.text = "Select Avatar";
+            descriptionText.fontSize = 14f;
+            descriptionText.alignment = TMPro.TextAlignmentOptions.Center;
+            descriptionText.color = Color.white;
+            descriptionText.material = null;
+            descriptionText.raycastTarget = true;
+            
+            // Create Avatar Buttons with original names and positioning
+            string[] avatarNames = { "Robert Button", "Leonard Button", "RPM Button" };
+            string[] avatarImageNames = { "Robert_Raw_Image", "Leonard_Raw_Image", "RPM_Raw_Image" };
+            string[] imageResourcePaths = { "Robert", "Leonard", "RPM" }; // Image names in Assets/Images
+            string[] avatarGameObjectNames = { "Robert", "Leonard", "682cd77aff222706b8291007" }; // Avatar GameObject names
+            
+            Vector2[] buttonPositions = { 
+                new Vector2(-119.600006f, -20.899984f),  // Robert Button
+                new Vector2(1f, -20.9f),                 // Leonard Button
+                new Vector2(-59f, -20.9f)                // RPM Button
+            };
+            Vector2[] imagePositions = { 
+                new Vector2(-64.9f, 0f),    // Robert_Raw_Image
+                new Vector2(0f, 0f),        // Leonard_Raw_Image
+                new Vector2(-32.45f, 0f)    // RPM_Raw_Image
+            };
+            
+            for (int i = 0; i < avatarNames.Length; i++)
+            {
+                // Create Button GameObject
+                GameObject buttonGO = new GameObject(avatarNames[i], typeof(RectTransform));
+                buttonGO.transform.SetParent(buttonsGO.transform, false);
+                buttonGO.layer = LayerMask.NameToLayer("UI");
+                
+                var buttonRect = buttonGO.GetComponent<RectTransform>();
+                buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
+                buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
+                buttonRect.sizeDelta = new Vector2(52.74f, 11.21f); // Original size
+                buttonRect.anchoredPosition = buttonPositions[i];
+                
+                // Add Image component first (as background)
+                var buttonImage = buttonGO.AddComponent<Image>();
+                buttonImage.color = Color.white;
+                buttonImage.raycastTarget = true;
+                buttonImage.maskable = true;
+                // Use Unity's default UI sprite (knob)
+                buttonImage.sprite = Resources.GetBuiltinResource<Sprite>("UI/Skin/Knob.psd");
+                buttonImage.type = Image.Type.Sliced;
+                buttonImage.fillCenter = true;
+                
+                // Add Button component
+                var button = buttonGO.AddComponent<Button>();
+                button.targetGraphic = buttonImage;
+                button.interactable = true;
+                
+                // Configure button colors (matching original)
+                var colors = new ColorBlock();
+                colors.normalColor = Color.white;
+                colors.highlightedColor = new Color(0.9607843f, 0.9607843f, 0.9607843f, 1f);
+                colors.pressedColor = new Color(0.78431374f, 0.78431374f, 0.78431374f, 1f);
+                colors.selectedColor = new Color(0.9607843f, 0.9607843f, 0.9607843f, 1f);
+                colors.disabledColor = new Color(0.78431374f, 0.78431374f, 0.78431374f, 0.5019608f);
+                colors.colorMultiplier = 1f;
+                colors.fadeDuration = 0.1f;
+                button.colors = colors;
+                
+                // Configure button transition
+                button.transition = Selectable.Transition.ColorTint;
+                
+                // Add OnClick event (matching original structure - activate selected, deactivate others)
+                int avatarIndex = i;
+                
+                // Clear any existing listeners
+                button.onClick.RemoveAllListeners();
+                
+                // Method 1: Add runtime listener (this works immediately)
+                button.onClick.AddListener(() => {
+                    OnAvatarButtonClicked(avatarIndex, avatarNames[avatarIndex], avatarGameObjectNames, descriptionText);
+                });
+                
+                // Method 2: Try to add persistent calls programmatically (visible in Inspector)
+                #if UNITY_EDITOR
+                try 
+                {
+                    // Create persistent calls like in the original scene
+                    var serializedObject = new UnityEditor.SerializedObject(button);
+                    var onClickProperty = serializedObject.FindProperty("m_OnClick.m_PersistentCalls.m_Calls");
+                    
+                    // Clear existing calls
+                    onClickProperty.arraySize = 0;
+                    
+                    // Add calls for each avatar (activate one, deactivate others)
+                    for (int j = 0; j < avatarGameObjectNames.Length; j++)
+                    {
+                        onClickProperty.arraySize++;
+                        var callProperty = onClickProperty.GetArrayElementAtIndex(j);
+                        
+                        // Find the target GameObject
+                        GameObject targetObj = GameObject.Find(avatarGameObjectNames[j]);
+                        if (targetObj != null)
+                        {
+                            callProperty.FindPropertyRelative("m_Target").objectReferenceValue = targetObj;
+                            callProperty.FindPropertyRelative("m_TargetAssemblyTypeName").stringValue = "UnityEngine.GameObject, UnityEngine";
+                            callProperty.FindPropertyRelative("m_MethodName").stringValue = "SetActive";
+                            callProperty.FindPropertyRelative("m_Mode").intValue = 6; // Bool mode
+                            callProperty.FindPropertyRelative("m_Arguments.m_BoolArgument").boolValue = (j == avatarIndex);
+                            callProperty.FindPropertyRelative("m_CallState").intValue = 2; // RuntimeOnly
+                        }
+                    }
+                    
+                    serializedObject.ApplyModifiedProperties();
+                    UnityEngine.Debug.Log($"[UI] Added persistent calls to button: {avatarNames[i]}");
+                }
+                catch (System.Exception ex)
+                {
+                    UnityEngine.Debug.LogWarning($"[UI] Could not add persistent calls: {ex.Message}");
+                }
+                #endif
+                
+                UnityEngine.Debug.Log($"[UI] Added OnClick event to button: {avatarNames[i]}");
+                
+                // Create Button Text (child of button)
+                GameObject buttonTextGO = new GameObject("Text", typeof(RectTransform));
+                buttonTextGO.transform.SetParent(buttonGO.transform, false);
+                buttonTextGO.layer = LayerMask.NameToLayer("UI");
+                
+                var buttonTextRect = buttonTextGO.GetComponent<RectTransform>();
+                buttonTextRect.anchorMin = Vector2.zero;
+                buttonTextRect.anchorMax = Vector2.one;
+                buttonTextRect.sizeDelta = Vector2.zero;
+                buttonTextRect.anchoredPosition = Vector2.zero;
+                
+                var buttonText = buttonTextGO.AddComponent<TMPro.TextMeshProUGUI>();
+                buttonText.text = avatarNames[i].Replace(" Button", ""); // "Robert", "Leonard", "RPM"
+                buttonText.fontSize = 10f;
+                buttonText.alignment = TMPro.TextAlignmentOptions.Center;
+                buttonText.color = Color.black;
+                buttonText.raycastTarget = false; // Don't block button clicks
+                
+                UnityEngine.Debug.Log($"[UI] Created avatar button: {avatarNames[i]} at position {buttonPositions[i]}");
+            }
+            
+            // Create Raw Images with actual textures from Assets/Images
+            for (int i = 0; i < avatarImageNames.Length; i++)
+            {
+                GameObject imageGO = new GameObject(avatarImageNames[i], typeof(RectTransform));
+                imageGO.transform.SetParent(imagesGO.transform, false);
+                imageGO.layer = LayerMask.NameToLayer("UI");
+                
+                var imageRect = imageGO.GetComponent<RectTransform>();
+                imageRect.anchorMin = new Vector2(0.5f, 0.5f);
+                imageRect.anchorMax = new Vector2(0.5f, 0.5f);
+                imageRect.sizeDelta = new Vector2(100f, 100f);
+                imageRect.anchoredPosition = imagePositions[i];
+                imageRect.localScale = new Vector3(0.37f, 0.37f, 0.37f); // Original scale
+                
+                // Add RawImage component (matching original)
+                var rawImage = imageGO.AddComponent<UnityEngine.UI.RawImage>();
+                rawImage.color = Color.white;
+                rawImage.raycastTarget = true;
+                rawImage.maskable = true;
+                
+                // Load the actual texture from Assets/Images
+                Texture2D texture = null;
+                
+                #if UNITY_EDITOR
+                // Try to load from Assets/Images using AssetDatabase (Editor only)
+                string[] possiblePaths = {
+                    $"Assets/Images/{imageResourcePaths[i]}.png",
+                    $"Assets/Images/{imageResourcePaths[i]}.PNG",
+                    $"Assets/Images/{imageResourcePaths[i]}.jpg",
+                    $"Assets/Images/{imageResourcePaths[i]}.JPG"
+                };
+                
+                foreach (string path in possiblePaths)
+                {
+                    texture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                    if (texture != null)
+                    {
+                        UnityEngine.Debug.Log($"[UI] Loaded texture for {avatarImageNames[i]} from: {path}");
+                        break;
+                    }
+                }
+                #endif
+                
+                // Fallback: Try Resources.Load
+                if (texture == null)
+                {
+                    texture = Resources.Load<Texture2D>($"Images/{imageResourcePaths[i]}");
+                    if (texture == null)
+                    {
+                        texture = Resources.Load<Texture2D>(imageResourcePaths[i]);
+                    }
+                }
+                
+                if (texture != null)
+                {
+                    rawImage.texture = texture;
+                    UnityEngine.Debug.Log($"[UI] Successfully loaded texture for {avatarImageNames[i]}: {imageResourcePaths[i]}");
+                }
+                else
+                {
+                    UnityEngine.Debug.LogWarning($"[UI] Could not load texture for {avatarImageNames[i]}: {imageResourcePaths[i]}");
+                    // Create fallback colored texture
+                    texture = new Texture2D(64, 64);
+                    Color[] colors = new Color[64 * 64];
+                    Color avatarColor = i == 0 ? Color.red : i == 1 ? Color.green : Color.blue;
+                    for (int j = 0; j < colors.Length; j++)
+                    {
+                        colors[j] = avatarColor;
+                    }
+                    texture.SetPixels(colors);
+                    texture.Apply();
+                    rawImage.texture = texture;
+                }
+                
+                UnityEngine.Debug.Log($"[UI] Created avatar image: {avatarImageNames[i]} at position {imagePositions[i]}");
+            }
+            
+            log("✅ Created Select Avatar UI with proper button and image configuration.");
+        }
+        
+        private void OnAvatarButtonClicked(int avatarIndex, string avatarName, string[] avatarGameObjectNames, TMPro.TextMeshProUGUI descriptionText)
+        {
+            UnityEngine.Debug.Log($"[Avatar] Button clicked: {avatarName} (Index: {avatarIndex})");
+            
+            // Update description text
+            if (descriptionText != null)
+            {
+                descriptionText.text = $"{avatarName.Replace(" Button", "")} Selected";
+            }
+            
+            // Find and activate/deactivate avatar GameObjects
+            string selectedAvatarName = avatarGameObjectNames[avatarIndex];
+            
+            // Search for avatar GameObjects in the scene
+            GameObject[] allGameObjects = UnityEngine.Object.FindObjectsOfType<GameObject>();
+            
+            for (int i = 0; i < avatarGameObjectNames.Length; i++)
+            {
+                string avatarObjName = avatarGameObjectNames[i];
+                
+                // Find the avatar GameObject
+                GameObject avatarObj = null;
+                foreach (GameObject go in allGameObjects)
+                {
+                    if (go.name == avatarObjName)
+                    {
+                        avatarObj = go;
+                        break;
+                    }
+                }
+                
+                if (avatarObj != null)
+                {
+                    if (i == avatarIndex)
+                    {
+                        // Activate the selected avatar
+                        avatarObj.SetActive(true);
+                        UnityEngine.Debug.Log($"[Avatar] Activated: {avatarObjName}");
+                    }
+                    else
+                    {
+                        // Deactivate the other avatars
+                        avatarObj.SetActive(false);
+                        UnityEngine.Debug.Log($"[Avatar] Deactivated: {avatarObjName}");
+                    }
+                }
+                else
+                {
+                    UnityEngine.Debug.LogWarning($"[Avatar] Could not find avatar GameObject: {avatarObjName}");
+                }
+            }
+            
+            // Log the selection
+            switch (avatarIndex)
+            {
+                case 0: // Robert Button
+                    UnityEngine.Debug.Log("[Avatar] Robert avatar selected - Robert activated, Leonard and RPM deactivated");
+                    break;
+                case 1: // Leonard Button
+                    UnityEngine.Debug.Log("[Avatar] Leonard avatar selected - Leonard activated, Robert and RPM deactivated");
+                    break;
+                case 2: // RPM Button
+                    UnityEngine.Debug.Log("[Avatar] RPM avatar selected - RPM activated, Robert and Leonard deactivated");
+                    break;
+            }
+        }
+        
+        private void OnAvatarSelected(int avatarIndex, string avatarName, TMPro.TextMeshProUGUI descriptionText, GameObject buttonsContainer, Color[] avatarColors)
+        {
+            UnityEngine.Debug.Log($"[Avatar] Selected: {avatarName}");
+            
+            // Update description text
+            if (descriptionText != null)
+            {
+                descriptionText.text = $"{avatarName} Selected";
+            }
+            
+            // Update button colors to show selection
+            for (int i = 0; i < buttonsContainer.transform.childCount; i++)
+            {
+                var childButton = buttonsContainer.transform.GetChild(i).GetComponent<Button>();
+                if (childButton != null)
+                {
+                    var buttonImage = childButton.GetComponent<Image>();
+                    if (i == avatarIndex)
+                    {
+                        buttonImage.color = avatarColors[i]; // Selected color
+                    }
+                    else
+                    {
+                        buttonImage.color = new Color(0.7f, 0.7f, 0.7f, 1f); // Default color
+                    }
+                }
+            }
+            
+            // TODO: Add your avatar selection logic here
+            // For example: NPCManager.Instance.ChangeAvatar(avatarIndex);
         }
 
         private void CreateVolumeSlider()
