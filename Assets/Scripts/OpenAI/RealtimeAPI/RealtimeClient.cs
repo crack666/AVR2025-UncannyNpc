@@ -45,6 +45,10 @@ namespace OpenAI.RealtimeAPI
         // Audio processing
         private Queue<AudioChunk> audioQueue = new Queue<AudioChunk>();
         private readonly object audioQueueLock = new object();
+        
+        // Runtime Voice Override System
+        private OpenAIVoice? runtimeVoiceOverride = null; // Null means use settings default
+        
         // Session management
         private string sessionId;
         private SessionState sessionState;
@@ -820,16 +824,26 @@ namespace OpenAI.RealtimeAPI
         }
 
         /// <summary>
-        /// Get voice name from OpenAISettings using the new enum-based system
+        /// Get voice name using Runtime Override System (runtime override takes precedence over settings)
         /// </summary>
         private string GetVoiceNameFromSettings(OpenAISettings settings)
         {
+            // Runtime override takes precedence
+            if (runtimeVoiceOverride.HasValue)
+            {
+                string runtimeVoice = runtimeVoiceOverride.Value.ToApiString();
+                Debug.Log($"[RealtimeClient] Using runtime voice override: {runtimeVoiceOverride.Value} -> {runtimeVoice}");
+                return runtimeVoice;
+            }
+            
+            // Fallback to settings
             if (settings == null) 
             {
                 Debug.LogWarning("[RealtimeClient] Settings is null, using default voice 'alloy'");
                 return "alloy";
             }
 
+            Debug.Log($"[RealtimeClient] Using voice from settings: {settings.Voice} -> {settings.VoiceName}");
             return settings.VoiceName; // Uses the new VoiceName property which calls ToApiString()
         }
 
@@ -868,6 +882,49 @@ namespace OpenAI.RealtimeAPI
             isAwaitingResponse = false;
             Debug.Log("[RealtimeClient] Connection state force reset - ready for fresh connection");
         }
+
+        #region Runtime Voice Override System
+        
+        /// <summary>
+        /// Set voice for runtime use (overrides OpenAISettings default)
+        /// </summary>
+        public void SetRuntimeVoice(OpenAIVoice voice)
+        {
+            runtimeVoiceOverride = voice;
+            Debug.Log($"[RealtimeClient] Runtime voice override set to: {voice} ({voice.ToApiString()})");
+        }
+        
+        /// <summary>
+        /// Clear runtime voice override (use OpenAISettings default)
+        /// </summary>
+        public void ClearRuntimeVoice()
+        {
+            runtimeVoiceOverride = null;
+            Debug.Log("[RealtimeClient] Runtime voice override cleared - using OpenAISettings default");
+        }
+        
+        /// <summary>
+        /// Get current effective voice (runtime override or settings default)
+        /// </summary>
+        public OpenAIVoice GetCurrentVoice()
+        {
+            if (runtimeVoiceOverride.HasValue)
+            {
+                return runtimeVoiceOverride.Value;
+            }
+            
+            return settings?.Voice ?? OpenAIVoice.alloy;
+        }
+        
+        /// <summary>
+        /// Get current effective voice as API string
+        /// </summary>
+        public string GetCurrentVoiceApiString()
+        {
+            return GetCurrentVoice().ToApiString();
+        }
+        
+        #endregion
     }
 }
 #endregion

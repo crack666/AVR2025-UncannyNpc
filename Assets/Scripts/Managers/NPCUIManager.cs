@@ -126,22 +126,38 @@ namespace Managers
                 var descriptiveNames = OpenAIVoiceExtensions.GetAllVoiceDescriptions();
                 voiceDropdown.AddOptions(new System.Collections.Generic.List<string>(descriptiveNames));
                 
-                // Sichere Voice-Initialisierung: Verwende alloy falls aktueller Wert ungültig
-                int safeVoiceIndex = 0; // alloy ist Index 0
-                if (OpenAIVoiceExtensions.IsValid(voice))
-                {
-                    safeVoiceIndex = (int)voice;
-                }
-                else
-                {
-                    Debug.LogWarning($"[UI] Invalid voice {voice} detected, using alloy instead");
-                    voice = OpenAIVoiceExtensions.GetDefault();
-                }
+                // Initialize voice from RealtimeClient or fallback to settings
+                int safeVoiceIndex = GetCurrentEffectiveVoiceIndex();
                 
                 voiceDropdown.value = safeVoiceIndex;
                 voiceDropdown.RefreshShownValue();
                 voiceDropdown.onValueChanged.AddListener(OnVoiceDropdownChanged);
             }
+        }
+        
+        /// <summary>
+        /// Get the currently effective voice index (from RealtimeClient runtime override or settings)
+        /// </summary>
+        private int GetCurrentEffectiveVoiceIndex()
+        {
+            var realtimeClient = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeClient>();
+            if (realtimeClient != null)
+            {
+                var currentVoice = realtimeClient.GetCurrentVoice();
+                Debug.Log($"[UI] Using current voice from RealtimeClient: {currentVoice}");
+                return (int)currentVoice;
+            }
+            
+            // Fallback to local voice variable or default
+            if (OpenAIVoiceExtensions.IsValid(voice))
+            {
+                Debug.Log($"[UI] Using local voice setting: {voice}");
+                return (int)voice;
+            }
+            
+            Debug.LogWarning($"[UI] Invalid voice {voice} detected, using alloy instead");
+            voice = OpenAIVoiceExtensions.GetDefault();
+            return 0; // alloy is index 0
         }
 
         private void SetupEventListeners()
@@ -297,15 +313,18 @@ namespace Managers
                     voice = newVoice;
                     isVoiceChangeInProgress = true;
                     
-                    // OpenAI Settings zur Laufzeit anpassen - direct property access
-                    var settings = Resources.Load<OpenAISettings>("OpenAISettings");
-                    if (settings != null)
+                    // OpenAI Settings zur Laufzeit anpassen - use Runtime Voice Override System
+                    var realtimeClient = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeClient>();
+                    if (realtimeClient != null)
                     {
-                        // Convert index to OpenAIVoice enum and set the Voice property
+                        // Convert index to OpenAIVoice enum and set runtime override
                         var voiceEnum = OpenAIVoiceExtensions.FromIndex(index);
-                        // Note: We can't set the Voice property directly as it's read-only
-                        // The voice selection is handled through the SerializedField in the settings
-                        Debug.Log($"[UI] Voice selection: {index} ({voiceEnum} - {voiceEnum.GetDescription()})");
+                        realtimeClient.SetRuntimeVoice(voiceEnum);
+                        Debug.Log($"[UI] Runtime voice override set: {index} ({voiceEnum} - {voiceEnum.GetDescription()})");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[UI] RealtimeClient not found - cannot set runtime voice override");
                     }
                     
                     var client = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeClient>();
