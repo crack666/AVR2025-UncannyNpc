@@ -24,7 +24,7 @@ namespace Managers
         [SerializeField] private TMP_Text statusDisplay;
         [SerializeField] private Slider volumeSlider;
         [SerializeField] private Toggle enableVADToggle;
-        [SerializeField] private TMPro.TMP_Dropdown voiceDropdown;
+        [SerializeField] private TMPro.TMP_Dropdown voiceDropdown; // Legacy - now using checkboxes
 
         [Header("NPC Reference")]
         [SerializeField] private NPCController npcController;
@@ -118,26 +118,9 @@ namespace Managers
                 conversationDisplay.text = "OpenAI Realtime NPC Chat\n\nClick 'Connect' to begin...";
             }
 
-            // Stimmen-Dropdown initialisieren und XR-kompatibel machen
-            if (voiceDropdown != null)
-            {
-                voiceDropdown.ClearOptions();
-                // Use descriptive voice names for better UX
-                var descriptiveNames = OpenAIVoiceExtensions.GetAllVoiceDescriptions();
-                voiceDropdown.AddOptions(new System.Collections.Generic.List<string>(descriptiveNames));
-                
-                // Initialize voice from RealtimeClient or fallback to settings
-                int safeVoiceIndex = GetCurrentEffectiveVoiceIndex();
-                
-                voiceDropdown.value = safeVoiceIndex;
-                voiceDropdown.RefreshShownValue();
-                voiceDropdown.onValueChanged.AddListener(OnVoiceDropdownChanged);
-                
-                // Make dropdown XR/VR compatible
-                MakeDropdownXRCompatible(voiceDropdown);
-                
-                Debug.Log("[UI] Voice dropdown setup complete - static layout configured");
-            }
+            // Voice selection is now handled by checkboxes created in CreateUIControlsStep
+            // The checkboxes directly call OnVoiceDropdownChanged via reflection
+            // No need to initialize dropdown anymore as it's replaced by checkboxes
         }
         
         /// <summary>
@@ -483,8 +466,21 @@ namespace Managers
             }
         }
 
+        // Public method for checkboxes to call directly
+        public void OnVoiceCheckboxChanged(int index)
+        {
+            Debug.Log($"[UI] OnVoiceCheckboxChanged called with index: {index}");
+            
+            // Debug: Show current voice state
+            Debug.Log($"[UI] Current voice before change: {voice}");
+            
+            OnVoiceDropdownChanged(index);
+        }
+
         private void OnVoiceDropdownChanged(int index)
         {
+            Debug.Log($"[UI] OnVoiceDropdownChanged called with index: {index}");
+            
             // Prevent multiple simultaneous voice changes
             if (isVoiceChangeInProgress)
             {
@@ -492,16 +488,19 @@ namespace Managers
                 return;
             }
             
-            // Temporarily disable dropdown during voice change
-            if (voiceDropdown != null)
-            {
-                voiceDropdown.interactable = false;
-            }
+            // Note: No need to disable dropdown anymore since we're using checkboxes
             
             var enumValues = System.Enum.GetValues(typeof(OpenAIVoice));
+            Debug.Log($"[UI] Total voice options available: {enumValues.Length}");
+            
             if (index >= 0 && index < enumValues.Length)
             {
                 var newVoice = (OpenAIVoice)enumValues.GetValue(index);
+                Debug.Log($"[UI] Attempting to change voice from {voice} to {newVoice} (index {index})");
+                
+                // Debug: Show voice names
+                Debug.Log($"[UI] Voice name from extension: {newVoice.GetDescription()}");
+                
                 if (voice != newVoice)
                 {
                     voice = newVoice;
@@ -513,8 +512,13 @@ namespace Managers
                     {
                         // Convert index to OpenAIVoice enum and set runtime override
                         var voiceEnum = OpenAIVoiceExtensions.FromIndex(index);
+                        Debug.Log($"[UI] Setting runtime voice override: {index} -> {voiceEnum}");
                         realtimeClient.SetRuntimeVoice(voiceEnum);
                         Debug.Log($"[UI] Runtime voice override set: {index} ({voiceEnum} - {voiceEnum.GetDescription()})");
+                        
+                        // Verify the change was applied
+                        var currentVoice = realtimeClient.GetCurrentVoice();
+                        Debug.Log($"[UI] RealtimeClient current voice after change: {currentVoice}");
                     }
                     else
                     {
@@ -522,6 +526,12 @@ namespace Managers
                     }
                     
                     var client = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeClient>();
+                    Debug.Log($"[UI] RealtimeClient found: {client != null}");
+                    if (client != null)
+                    {
+                        Debug.Log($"[UI] RealtimeClient IsConnected: {client.IsConnected}");
+                    }
+                    
                     if (client != null && client.IsConnected)
                     {
                         // CRITICAL: OpenAI API never allows voice changes after any assistant audio
@@ -538,34 +548,19 @@ namespace Managers
                         // Not connected - just update settings
                         UpdateStatus($"Voice set to: {newVoice} (will apply on next connection)", systemMessageColor);
                         isVoiceChangeInProgress = false; // Reset flag
-                        
-                        // Re-enable dropdown
-                        if (voiceDropdown != null)
-                        {
-                            voiceDropdown.interactable = true;
-                        }
+                        Debug.Log($"[UI] Voice successfully changed to: {newVoice}");
                     }
                 }
                 else
                 {
+                    Debug.Log($"[UI] Voice unchanged (already {newVoice})");
                     isVoiceChangeInProgress = false; // Reset flag if no change needed
-                    
-                    // Re-enable dropdown
-                    if (voiceDropdown != null)
-                    {
-                        voiceDropdown.interactable = true;
-                    }
                 }
             }
             else
             {
+                Debug.LogError($"[UI] Invalid voice index: {index} (valid range: 0-{enumValues.Length-1})");
                 isVoiceChangeInProgress = false; // Reset flag if invalid index
-                
-                // Re-enable dropdown
-                if (voiceDropdown != null)
-                {
-                    voiceDropdown.interactable = true;
-                }
             }
         }
         
@@ -635,12 +630,7 @@ namespace Managers
                 // Success - update UI
                 UpdateStatus("Session restarted with new voice", systemMessageColor);
                 isVoiceChangeInProgress = false; // Reset protection flag
-                
-                // Re-enable dropdown
-                if (voiceDropdown != null)
-                {
-                    voiceDropdown.interactable = true;
-                }
+                Debug.Log("[UI] Voice change session restart completed successfully");
             }
             else
             {
@@ -648,12 +638,6 @@ namespace Managers
                 Debug.LogError($"[UI] Error during voice change session restart: {lastException?.Message ?? "Unknown error"}");
                 UpdateStatus("Voice change failed - please try again", systemMessageColor);
                 isVoiceChangeInProgress = false; // Reset protection flag
-                
-                // Re-enable dropdown
-                if (voiceDropdown != null)
-                {
-                    voiceDropdown.interactable = true;
-                }
             }
         }
 

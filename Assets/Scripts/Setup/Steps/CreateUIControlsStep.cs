@@ -27,7 +27,7 @@ namespace Setup.Steps
         {
             log("🎛️ Step 2.6: UI Control Creation");
 
-            CreateVoiceDropdown();
+            CreateVoiceCheckboxes();
             CreateVolumeSlider();
             CreateEnableVADToggle();
             
@@ -37,199 +37,134 @@ namespace Setup.Steps
             log("✅ All UI controls created and event listeners setup.");
         }
 
-        private void CreateVoiceDropdown()
+        private void CreateVoiceCheckboxes()
         {
-            GameObject dropdownGO = new GameObject("Voice Dropdown", typeof(RectTransform));
-            dropdownGO.transform.SetParent(panel.transform, false);
-            var rect = dropdownGO.GetComponent<RectTransform>();
-            // Reduzierte Breite um Überlappung mit Volume Slider zu vermeiden
-            rect.anchorMin = new Vector2(0.1f, 0.13f);
-            rect.anchorMax = new Vector2(0.42f, 0.18f); // Schmaler, um Platz für Slider zu schaffen
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
+            // Voice Selection Group Container
+            GameObject voiceGroupGO = new GameObject("Voice Selection Group", typeof(RectTransform));
+            voiceGroupGO.transform.SetParent(panel.transform, false);
+            var groupRect = voiceGroupGO.GetComponent<RectTransform>();
+            // Gleiche Position wie das alte Dropdown, aber etwas größer für alle Checkboxes
+            groupRect.anchorMin = new Vector2(0.1f, 0.05f);
+            groupRect.anchorMax = new Vector2(0.42f, 0.18f);
+            groupRect.offsetMin = Vector2.zero;
+            groupRect.offsetMax = Vector2.zero;
 
-            // Background
-            var backgroundGO = new GameObject("Background", typeof(RectTransform));
-            backgroundGO.transform.SetParent(dropdownGO.transform, false);
-            var bgRect = backgroundGO.GetComponent<RectTransform>();
-            bgRect.anchorMin = Vector2.zero;
-            bgRect.anchorMax = Vector2.one;
-            bgRect.offsetMin = Vector2.zero;
-            bgRect.offsetMax = Vector2.zero;
-            var bgImage = backgroundGO.AddComponent<Image>();
-            bgImage.color = new Color(0.2f, 0.2f, 0.2f, 1f);
+            // Title Label
+            var titleGO = new GameObject("Voice Title", typeof(RectTransform));
+            titleGO.transform.SetParent(voiceGroupGO.transform, false);
+            var titleRect = titleGO.GetComponent<RectTransform>();
+            titleRect.anchorMin = new Vector2(0f, 0.85f);
+            titleRect.anchorMax = new Vector2(1f, 1f);
+            titleRect.offsetMin = Vector2.zero;
+            titleRect.offsetMax = Vector2.zero;
+            var titleLabel = titleGO.AddComponent<TextMeshProUGUI>();
+            titleLabel.text = "Voice:";
+            titleLabel.fontSize = 10;
+            titleLabel.fontStyle = FontStyles.Bold;
+            titleLabel.alignment = TextAlignmentOptions.Left;
+            titleLabel.color = Color.white;
 
-            // TMP_Dropdown
-            var dropdown = dropdownGO.AddComponent<TMP_Dropdown>();
-            dropdown.targetGraphic = bgImage;
+            // Get voice options
+            var voiceDescriptions = OpenAIVoiceExtensions.GetAllVoiceDescriptions();
+            var voiceCount = voiceDescriptions.Length;
+            float checkboxHeight = 0.8f / voiceCount; // Verteilung über verfügbare Höhe
 
-            // Label - Verbesserter Text-Overflow für schmaleres Dropdown
-            var labelGO = new GameObject("Label", typeof(RectTransform));
-            labelGO.transform.SetParent(dropdownGO.transform, false);
-            var labelRect = labelGO.GetComponent<RectTransform>();
-            labelRect.anchorMin = new Vector2(0, 0);
-            labelRect.anchorMax = new Vector2(1, 1);
-            labelRect.offsetMin = new Vector2(10, 0);
-            labelRect.offsetMax = new Vector2(-25, 0);
-            var label = labelGO.AddComponent<TextMeshProUGUI>();
-            label.text = "Voice: alloy";
-            label.fontSize = 10; // Noch kleiner für schmaleres Dropdown
-            label.alignment = TextAlignmentOptions.Left;
-            label.color = Color.white;
-            label.textWrappingMode = TextWrappingModes.NoWrap;
-            label.overflowMode = TextOverflowModes.Ellipsis; // Wichtig für zu lange Texte
-            dropdown.captionText = label;
+            // Create ToggleGroup for exclusive selection
+            var toggleGroup = voiceGroupGO.AddComponent<ToggleGroup>();
+            toggleGroup.allowSwitchOff = false; // Immer eine auswählen
 
-            // Arrow
-            var arrowGO = new GameObject("Arrow", typeof(RectTransform));
-            arrowGO.transform.SetParent(dropdownGO.transform, false);
-            var arrowRect = arrowGO.GetComponent<RectTransform>();
-            arrowRect.anchorMin = new Vector2(1, 0.5f);
-            arrowRect.anchorMax = new Vector2(1, 0.5f);
-            arrowRect.sizeDelta = new Vector2(20, 20);
-            arrowRect.anchoredPosition = new Vector2(-15, 0);
-            var arrowImage = arrowGO.AddComponent<Image>();
-            arrowImage.color = Color.white;
+            // Create checkboxes for each voice (vertically stacked)
+            for (int i = 0; i < voiceCount; i++)
+            {
+                // Checkbox Container
+                GameObject checkboxGO = new GameObject($"Voice_{voiceDescriptions[i]}_Checkbox", typeof(RectTransform));
+                checkboxGO.transform.SetParent(voiceGroupGO.transform, false);
+                var checkboxRect = checkboxGO.GetComponent<RectTransform>();
+                
+                // Position vertically based on index (stack from top to bottom)
+                float startY = 0.8f - (i * checkboxHeight);
+                float endY = startY - checkboxHeight;
+                checkboxRect.anchorMin = new Vector2(0f, endY);
+                checkboxRect.anchorMax = new Vector2(1f, startY);
+                checkboxRect.offsetMin = new Vector2(2, 1); // Small padding
+                checkboxRect.offsetMax = new Vector2(-2, -1);
 
-            // Template - Kompaktere Größe und intelligent positioniert
-            var templateGO = new GameObject("Template", typeof(RectTransform));
-            templateGO.transform.SetParent(dropdownGO.transform, false);
-            templateGO.SetActive(false);
-            var templateRect = templateGO.GetComponent<RectTransform>();
-            templateRect.anchorMin = new Vector2(0, 0);
-            templateRect.anchorMax = new Vector2(1, 0);
-            templateRect.pivot = new Vector2(0.5f, 1); // Top-center pivot
-            templateRect.anchoredPosition = new Vector2(0, 0); // Direkt unterhalb des Dropdowns
-            // Intelligente Breite: Maximal 300px, aber mindestens die Breite des Dropdowns
-            templateRect.sizeDelta = new Vector2(300, 200); // Kompakter: 5 Items * 40px = 200px visible height
-            var templateImage = templateGO.AddComponent<Image>();
-            templateImage.color = new Color(0.15f, 0.15f, 0.15f, 0.98f);
+                // Background
+                var bgGO = new GameObject("Background", typeof(RectTransform));
+                bgGO.transform.SetParent(checkboxGO.transform, false);
+                var bgRect = bgGO.GetComponent<RectTransform>();
+                bgRect.anchorMin = new Vector2(0, 0.2f);
+                bgRect.anchorMax = new Vector2(0.2f, 0.8f);
+                bgRect.offsetMin = Vector2.zero;
+                bgRect.offsetMax = Vector2.zero;
+                var bgImage = bgGO.AddComponent<Image>();
+                bgImage.color = new Color(0.3f, 0.3f, 0.3f, 1f);
 
-            // Viewport
-            var viewportGO = new GameObject("Viewport", typeof(RectTransform));
-            viewportGO.transform.SetParent(templateGO.transform, false);
-            var viewportRect = viewportGO.GetComponent<RectTransform>();
-            viewportRect.anchorMin = Vector2.zero;
-            viewportRect.anchorMax = Vector2.one;
-            viewportRect.offsetMin = Vector2.zero;
-            viewportRect.offsetMax = Vector2.zero;
-            var viewportMask = viewportGO.AddComponent<Mask>();
-            viewportMask.showMaskGraphic = false;
-            var viewportImage = viewportGO.AddComponent<Image>();
-            viewportImage.color = new Color(1, 1, 1, 0.01f);
+                // Checkmark
+                var checkmarkGO = new GameObject("Checkmark", typeof(RectTransform));
+                checkmarkGO.transform.SetParent(bgGO.transform, false);
+                var checkmarkRect = checkmarkGO.GetComponent<RectTransform>();
+                checkmarkRect.anchorMin = new Vector2(0.1f, 0.1f);
+                checkmarkRect.anchorMax = new Vector2(0.9f, 0.9f);
+                checkmarkRect.offsetMin = Vector2.zero;
+                checkmarkRect.offsetMax = Vector2.zero;
+                var checkmarkImage = checkmarkGO.AddComponent<Image>();
+                checkmarkImage.color = new Color(0f, 0.8f, 0f, 1f); // Bright green
 
-            // Content - Korrigiertes Anchoring für proper top alignment
-            var contentGO = new GameObject("Content", typeof(RectTransform));
-            contentGO.transform.SetParent(viewportGO.transform, false);
-            var contentRect = contentGO.GetComponent<RectTransform>();
-            contentRect.anchorMin = new Vector2(0, 1); // Links-oben anchor
-            contentRect.anchorMax = new Vector2(1, 1); // Rechts-oben anchor  
-            contentRect.pivot = new Vector2(0.5f, 1); // Top-center pivot
-            contentRect.anchoredPosition = Vector2.zero; // Startet ganz oben
-            contentRect.sizeDelta = new Vector2(0, 280); // Reduziert: 7 Items * 40px = 280px für etwas kompakteres Layout
-            
-            // VerticalLayoutGroup für automatisches Layout der Dropdown-Items
-            var layoutGroup = contentGO.AddComponent<VerticalLayoutGroup>();
-            layoutGroup.childControlHeight = false;
-            layoutGroup.childControlWidth = true;
-            layoutGroup.childForceExpandHeight = false;
-            layoutGroup.childForceExpandWidth = true;
-            layoutGroup.spacing = 0;
-            layoutGroup.padding = new RectOffset(0, 0, 0, 0);
-            layoutGroup.childAlignment = TextAnchor.UpperLeft;
-            
-            // ContentSizeFitter damit Content sich an Items anpasst
-            var sizeFitter = contentGO.AddComponent<ContentSizeFitter>();
-            sizeFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-            sizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            
-            // ScrollRect für flexibles Scrolling
-            var scrollRect = templateGO.AddComponent<ScrollRect>();
-            scrollRect.content = contentRect;
-            scrollRect.viewport = viewportRect;
-            scrollRect.horizontal = false;
-            scrollRect.vertical = true;
-            scrollRect.movementType = ScrollRect.MovementType.Clamped;
-            scrollRect.scrollSensitivity = 30f;
-            scrollRect.inertia = true;
-            scrollRect.decelerationRate = 0.135f;
+                // Label
+                var labelGO = new GameObject("Label", typeof(RectTransform));
+                labelGO.transform.SetParent(checkboxGO.transform, false);
+                var labelRect = labelGO.GetComponent<RectTransform>();
+                labelRect.anchorMin = new Vector2(0.25f, 0f);
+                labelRect.anchorMax = new Vector2(1f, 1f);
+                labelRect.offsetMin = Vector2.zero;
+                labelRect.offsetMax = Vector2.zero;
+                var label = labelGO.AddComponent<TextMeshProUGUI>();
+                label.text = voiceDescriptions[i];
+                label.fontSize = 8; // Kleine Schrift für kompakte Darstellung
+                label.fontStyle = FontStyles.Normal;
+                label.alignment = TextAlignmentOptions.MidlineLeft;
+                label.color = Color.white;
+                label.textWrappingMode = TextWrappingModes.NoWrap;
+                label.overflowMode = TextOverflowModes.Ellipsis;
 
-            // Item (Option) - Angepasst für VerticalLayoutGroup
-            var itemGO = new GameObject("Item", typeof(RectTransform));
-            itemGO.transform.SetParent(contentGO.transform, false);
-            var itemRect = itemGO.GetComponent<RectTransform>();
-            itemRect.anchorMin = new Vector2(0, 1); // Top-left anchor für VLG
-            itemRect.anchorMax = new Vector2(1, 1); // Top-right anchor für VLG
-            itemRect.pivot = new Vector2(0.5f, 1); // Top-center pivot
-            itemRect.sizeDelta = new Vector2(0, 35); // Etwas kompakter: 35px statt 40px
-            
-            // LayoutElement für VerticalLayoutGroup
-            var layoutElement = itemGO.AddComponent<LayoutElement>();
-            layoutElement.minHeight = 35;
-            layoutElement.preferredHeight = 35;
-            layoutElement.flexibleHeight = 0;
+                // Toggle Component
+                var toggle = checkboxGO.AddComponent<Toggle>();
+                toggle.targetGraphic = bgImage;
+                toggle.graphic = checkmarkImage;
+                toggle.group = toggleGroup;
+                toggle.isOn = (i == 0); // Erste Option (alloy) ist standardmäßig ausgewählt
 
-            // Toggle für Item
-            var toggle = itemGO.AddComponent<Toggle>();
+                // Enhanced colors for better visibility
+                var colors = ColorBlock.defaultColorBlock;
+                colors.normalColor = new Color(0.3f, 0.3f, 0.3f, 1f);
+                colors.highlightedColor = new Color(0f, 0.6f, 1f, 1f); // Bright blue highlight
+                colors.pressedColor = new Color(0f, 0.8f, 0f, 1f);     // Bright green pressed
+                colors.selectedColor = new Color(0f, 0.8f, 0f, 0.8f);  // Green selected
+                colors.disabledColor = new Color(0.2f, 0.2f, 0.2f, 0.5f);
+                toggle.colors = colors;
 
-            // Item Background
-            var itemBGGO = new GameObject("Item Background", typeof(RectTransform));
-            itemBGGO.transform.SetParent(itemGO.transform, false);
-            var itemBGRect = itemBGGO.GetComponent<RectTransform>();
-            itemBGRect.anchorMin = Vector2.zero;
-            itemBGRect.anchorMax = Vector2.one;
-            itemBGRect.offsetMin = Vector2.zero;
-            itemBGRect.offsetMax = Vector2.zero;
-            var itemBGImage = itemBGGO.AddComponent<Image>();
-            itemBGImage.color = new Color(0.2f, 0.2f, 0.2f, 1f);
-            toggle.targetGraphic = itemBGImage;
+                // Set UI layer
+                checkboxGO.layer = LayerMask.NameToLayer("UI");
 
-            // Item Checkmark - Nur der äußere Rahmen, ohne dauerhaft sichtbares Inner Check
-            var checkmarkGO = new GameObject("Item Checkmark", typeof(RectTransform));
-            checkmarkGO.transform.SetParent(itemGO.transform, false);
-            var checkmarkRect = checkmarkGO.GetComponent<RectTransform>();
-            checkmarkRect.anchorMin = new Vector2(0, 0.5f);
-            checkmarkRect.anchorMax = new Vector2(0, 0.5f);
-            checkmarkRect.sizeDelta = new Vector2(16, 16);
-            checkmarkRect.anchoredPosition = new Vector2(12, 0);
-            var checkmarkImage = checkmarkGO.AddComponent<Image>();
-            // Transparenter Hintergrund, wird nur bei Auswahl grün
-            checkmarkImage.color = new Color(0.4f, 0.4f, 0.4f, 0.3f);
-            
-            toggle.graphic = checkmarkImage;
+                // Add VoiceCheckboxHandler component for proper event handling
+                var handler = checkboxGO.AddComponent<UI.VoiceCheckboxHandler>();
+                handler.SetVoiceIndex(i);
+                
+                // Explicitly set the checkbox reference using reflection
+                var checkboxField = typeof(UI.VoiceCheckboxHandler).GetField("checkbox", 
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (checkboxField != null)
+                {
+                    checkboxField.SetValue(handler, toggle);
+                }
+                
+                UnityEngine.Debug.Log($"[UI] Created voice checkbox {i} with handler and toggle reference");
+            }
 
-            // Item Label - Mehr Platz für längeren Text
-            var itemLabelGO = new GameObject("Item Label", typeof(RectTransform));
-            itemLabelGO.transform.SetParent(itemGO.transform, false);
-            var itemLabelRect = itemLabelGO.GetComponent<RectTransform>();
-            itemLabelRect.anchorMin = new Vector2(0, 0);
-            itemLabelRect.anchorMax = new Vector2(1, 1);
-            itemLabelRect.offsetMin = new Vector2(30, 2); // Padding oben/unten
-            itemLabelRect.offsetMax = new Vector2(-5, -2); // Weniger rechts padding
-            var itemLabel = itemLabelGO.AddComponent<TextMeshProUGUI>();
-            itemLabel.text = "Option";
-            itemLabel.fontSize = 10; // Kleiner für kompaktere Darstellung und bessere Lesbarkeit
-            itemLabel.alignment = TextAlignmentOptions.Left;
-            itemLabel.color = Color.white;
-            itemLabel.textWrappingMode = TextWrappingModes.NoWrap; // Kein Wrapping
-            itemLabel.overflowMode = TextOverflowModes.Ellipsis; // Ellipsis bei zu langem Text
-
-            // Set Dropdown Template References
-            dropdown.template = templateRect;
-            dropdown.itemText = itemLabel;
-            dropdown.captionText = label;
-
-            // Optionen befüllen mit OpenAI Voice Descriptions
-            var descriptiveNames = OpenAIVoiceExtensions.GetAllVoiceDescriptions();
-            dropdown.ClearOptions();
-            dropdown.AddOptions(new List<string>(descriptiveNames));
-            
-            // Setze korrekten Standardwert (alloy = Index 0)
-            dropdown.value = 0; // alloy ist das erste Element
-            dropdown.RefreshShownValue(); // Force UI Update
-
-            VoiceDropdown = dropdown;
-            log("✅ Created Voice Dropdown.");
+            // Keep VoiceDropdown property for compatibility (but it will be null)
+            VoiceDropdown = null;
+            log("✅ Created Voice Checkboxes (replaced dropdown).");
         }
 
         private void CreateVolumeSlider()
