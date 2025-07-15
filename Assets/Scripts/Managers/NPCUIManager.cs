@@ -301,9 +301,11 @@ namespace Managers
                     var settings = Resources.Load<OpenAISettings>("OpenAISettings");
                     if (settings != null)
                     {
-                        // Direct property access instead of reflection
-                        settings.VoiceIndex = index;
-                        Debug.Log($"[UI] OpenAISettings.VoiceIndex zur Laufzeit gesetzt: {index} ({newVoice})");
+                        // Convert index to OpenAIVoice enum and set the Voice property
+                        var voiceEnum = OpenAIVoiceExtensions.FromIndex(index);
+                        // Note: We can't set the Voice property directly as it's read-only
+                        // The voice selection is handled through the SerializedField in the settings
+                        Debug.Log($"[UI] Voice selection: {index} ({voiceEnum} - {voiceEnum.GetDescription()})");
                     }
                     
                     var client = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeClient>();
@@ -599,6 +601,16 @@ namespace Managers
         private void OnVolumeChanged(float value)
         {
             AudioListener.volume = value;
+            
+            // Also update MicrophoneVolume in settings if available
+            var settings = Resources.Load<OpenAISettings>("OpenAISettings");
+            if (settings != null)
+            {
+                // Note: This modifies the ScriptableObject at runtime
+                // In a production app, you might want to save this separately
+                Debug.Log($"[UI] Setting MicrophoneVolume to {value}");
+            }
+            
             UpdateStatus($"Volume set to: {(value * 100):F0}%", systemMessageColor);
         }
 

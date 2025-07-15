@@ -196,9 +196,6 @@ namespace NPC
             {
                 SetState(NPCState.Connecting);
                 
-                // Force reset connection state to prevent "already connected" issues
-                realtimeClient.ForceResetConnectionState();
-                
                 var success = await realtimeClient.ConnectAsync();
 
                 if (success)

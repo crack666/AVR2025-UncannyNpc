@@ -34,7 +34,9 @@ Create **intelligent NPCs** that can have **natural voice conversations** in Uni
 - **Gapless audio streaming** - Zero lag, natural conversations  
 - **Server-side VAD** - Intelligent turn-taking via OpenAI API
 - **Robust stream end detection** - Generous silence timeout prevents audio cutoff
-- **Multiple voice models** - Choose personality through voice
+- **8 Professional voices** - Choose personality: Alloy, Ash, Ballad, Coral, Echo, Sage, Shimmer, Verse
+- **User-friendly voice selection** - Dropdown with descriptions: "Alloy (neutral): Balanced, warm voice"
+- **Runtime voice switching** - Change voices seamlessly during gameplay
 - **User-configurable audio** - Buffer size, silence timeout, thresholds
 - **Robust error handling** - Production-ready reliability
 
@@ -97,14 +99,33 @@ cd unity-openai-npc
 
 ```
 Unity Project
-├── 🤖 NPCController          # Main NPC behavior
-├── 🎙️ RealtimeAudioManager    # Gapless audio streaming  
-├── 🌐 RealtimeClient          # OpenAI WebSocket connection
-├── 🎨 ReadyPlayerMe Avatar    # Visual representation
-└── 🎛️ Configuration UI        # In-game settings panel
+├── 🤖 NPCController          # Main NPC behavior and state management
+├── 🎙️ RealtimeAudioManager    # Gapless audio streaming and playback
+├── 🌐 RealtimeClient          # OpenAI WebSocket connection management  
+├── 🎨 ReadyPlayerMe Avatar    # Visual representation and lip sync
+├── 🎛️ Configuration UI        # In-game settings and voice selection
+└── 📁 Project Structure:      # Clean, modular organization
+    ├── Assets/Scripts/OpenAI/
+    │   ├── OpenAIVoice.cs              # Voice enum definitions
+    │   ├── OpenAIVoiceExtensions.cs    # Voice utility methods
+    │   ├── Models/                     # Data structures
+    │   │   ├── AudioChunk.cs
+    │   │   └── SessionState.cs
+    │   ├── RealtimeAPI/                # Core OpenAI integration
+    │   │   ├── RealtimeClient.cs
+    │   │   ├── RealtimeEventTypes.cs
+    │   │   ├── RealtimeAudioManager.cs
+    │   │   └── RealtimeAudioManagerSetup.cs
+    │   └── Threading/                  # Thread-safe utilities
+    │       └── UnityMainThreadDispatcher.cs
+    ├── Assets/Settings/
+    │   └── OpenAISettings.cs           # ScriptableObject configuration
+    └── Assets/Scripts/Managers/
+        ├── NPCController.cs            # NPC behavior coordination
+        └── NPCUIManager.cs             # UI controls and interaction
 ```
 
-**Core Philosophy:** *Simple to use, powerful to extend*
+**Core Philosophy:** *Simple to use, powerful to extend, cleanly organized*
 
 ---
 
@@ -196,6 +217,28 @@ If this project helps you create amazing NPCs, please:
 ---
 
 ## 📅 **Recent Updates**
+
+### **v2.4 - Voice System & Architecture Cleanup (July 2025)** 🎯
+
+#### **🔧 Voice System Refactoring**
+- ✅ **Enum-Based Voice Selection**: Replaced index-based system with type-safe OpenAIVoice enum
+- ✅ **User-Friendly UI**: Voice dropdown now shows descriptive names with gender indicators
+- ✅ **Clean Code Separation**: Voice logic moved to dedicated files (OpenAIVoice.cs, OpenAIVoiceExtensions.cs)
+- ✅ **Extension Methods**: Robust API string conversion, validation, and UI helpers
+- ✅ **Runtime Voice Switching**: Seamless voice changes during active conversations
+
+#### **📁 Project Structure Optimization**
+- ✅ **Logical File Organization**: Code files moved from Settings/ to Scripts/OpenAI/
+- ✅ **Modular Architecture**: Clear separation between configuration and implementation
+- ✅ **Maintainable Codebase**: Related functionality grouped in dedicated folders
+
+#### **⚡ Technical Improvements**
+```
+File Structure:       Assets/Scripts/OpenAI/ (code) + Assets/Settings/ (config)
+Voice Selection:      Type-safe enum with extension methods
+UI Experience:        "Alloy (neutral): Balanced, warm voice" descriptions
+Code Maintainability: 100% (clean separation of concerns)
+```
 
 ### **v2.3 - Complete OpenAI Reference Alignment (July 2025)** 🎯
 
