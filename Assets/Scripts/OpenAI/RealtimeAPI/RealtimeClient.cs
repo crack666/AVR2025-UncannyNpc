@@ -156,6 +156,13 @@ namespace OpenAI.RealtimeAPI
             }
 
             isConnecting = false;
+            
+            // Ensure clean state on failed connection
+            if (!isConnected)
+            {
+                isAwaitingResponse = false;
+            }
+            
             return isConnected;
         }
 
@@ -202,6 +209,7 @@ namespace OpenAI.RealtimeAPI
                 return;
 
             isConnected = false;
+            isConnecting = false; // Also reset connecting state
             isAwaitingResponse = false; // Reset awaiting response state
 
             try
@@ -701,6 +709,17 @@ namespace OpenAI.RealtimeAPI
         {
             isAwaitingResponse = false;
             Debug.Log("[RealtimeClient] Session state reset - ready for new conversation");
+        }
+
+        /// <summary>
+        /// Force reset connection state - use when connection state is inconsistent
+        /// </summary>
+        public void ForceResetConnectionState()
+        {
+            isConnected = false;
+            isConnecting = false;
+            isAwaitingResponse = false;
+            Debug.Log("[RealtimeClient] Connection state force reset - ready for fresh connection");
         }
     }
 }

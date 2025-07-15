@@ -203,10 +203,14 @@ namespace Managers
 
         public void OnConnectClicked()
         {
-            if (npcController != null)
+            if (npcController != null && npcController.CurrentState != NPCState.Connecting)
             {
                 _ = npcController.ConnectToOpenAI(); // Fire-and-forget async
                 UpdateStatus("Connecting to OpenAI...", systemMessageColor);
+            }
+            else if (npcController != null && npcController.CurrentState == NPCState.Connecting)
+            {
+                UpdateStatus("Already connecting, please wait...", systemMessageColor);
             }
         }
 
@@ -233,6 +237,15 @@ namespace Managers
             {
                 npcController.StopConversation();
                 UpdateStatus("Conversation stopped", systemMessageColor);
+            }
+        }
+
+        public void OnResetSystemClicked()
+        {
+            if (npcController != null)
+            {
+                _ = npcController.ResetSystem(); // Fire-and-forget async
+                UpdateStatus("Resetting system...", systemMessageColor);
             }
         }
 
