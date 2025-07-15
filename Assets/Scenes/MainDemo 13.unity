@@ -7103,7 +7103,7 @@ AudioSource:
   m_GameObject: {fileID: 235046465}
   m_Enabled: 1
   serializedVersion: 4
-  OutputAudioMixerGroup: {fileID: 0}
+  OutputAudioMixerGroup: {fileID: 24300002, guid: 53e457848ed81d24d81185909712ce2b, type: 2}
   m_audioClip: {fileID: 0}
   m_Resource: {fileID: 0}
   m_PlayOnAwake: 0
@@ -23528,6 +23528,11 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 1463440987}
   m_SourcePrefab: {fileID: 100100000, guid: b1ff80b12699f7c4b979caffd21ccf3c, type: 3}
+--- !u!95 &720656998 stripped
+Animator:
+  m_CorrespondingSourceObject: {fileID: 8465037606146879128, guid: b1ff80b12699f7c4b979caffd21ccf3c, type: 3}
+  m_PrefabInstance: {fileID: 720656997}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &729342958
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -24973,7 +24978,7 @@ Camera:
     serializedVersion: 2
     m_Bits: 128
   m_RenderingPath: -1
-  m_TargetTexture: {fileID: 1116017037}
+  m_TargetTexture: {fileID: 927399301}
   m_TargetDisplay: 0
   m_TargetEye: 3
   m_HDR: 1
@@ -29832,6 +29837,43 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 4ae3c4ca2edaf5b42b27bf3243dbdbd0, type: 3}
+--- !u!84 &927399301
+RenderTexture:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: 
+  m_ImageContentsHash:
+    serializedVersion: 2
+    Hash: 00000000000000000000000000000000
+  m_IsAlphaChannelOptional: 0
+  serializedVersion: 6
+  m_Width: 512
+  m_Height: 512
+  m_AntiAliasing: 1
+  m_MipCount: -1
+  m_DepthStencilFormat: 94
+  m_ColorFormat: 4
+  m_MipMap: 0
+  m_GenerateMips: 1
+  m_SRGB: 1
+  m_UseDynamicScale: 0
+  m_UseDynamicScaleExplicit: 0
+  m_BindMS: 0
+  m_EnableCompatibleFormat: 1
+  m_EnableRandomWrite: 0
+  m_TextureSettings:
+    serializedVersion: 2
+    m_FilterMode: 1
+    m_Aniso: 1
+    m_MipBias: 0
+    m_WrapU: 1
+    m_WrapV: 1
+    m_WrapW: 1
+  m_Dimension: 2
+  m_VolumeDepth: 1
+  m_ShadowSamplingMode: 2
 --- !u!4 &928469009 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 9176242562311319873, guid: 22d4c37aab9130944a76d41c6e7646b1, type: 3}
@@ -34373,43 +34415,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 8535539322309460303, guid: 417087d1a8b3ec146841382c51898a12, type: 3}
   m_PrefabInstance: {fileID: 1115218242}
   m_PrefabAsset: {fileID: 0}
---- !u!84 &1116017037
-RenderTexture:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: 
-  m_ImageContentsHash:
-    serializedVersion: 2
-    Hash: 00000000000000000000000000000000
-  m_IsAlphaChannelOptional: 0
-  serializedVersion: 6
-  m_Width: 512
-  m_Height: 512
-  m_AntiAliasing: 1
-  m_MipCount: -1
-  m_DepthStencilFormat: 94
-  m_ColorFormat: 4
-  m_MipMap: 0
-  m_GenerateMips: 1
-  m_SRGB: 1
-  m_UseDynamicScale: 0
-  m_UseDynamicScaleExplicit: 0
-  m_BindMS: 0
-  m_EnableCompatibleFormat: 1
-  m_EnableRandomWrite: 0
-  m_TextureSettings:
-    serializedVersion: 2
-    m_FilterMode: 1
-    m_Aniso: 1
-    m_MipBias: 0
-    m_WrapU: 1
-    m_WrapV: 1
-    m_WrapW: 1
-  m_Dimension: 2
-  m_VolumeDepth: 1
-  m_ShadowSamplingMode: 2
 --- !u!1 &1118331377
 GameObject:
   m_ObjectHideFlags: 0
@@ -44502,7 +44507,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   realtimeClient: {fileID: 1425044850}
   audioManager: {fileID: 1425044849}
-  npcAnimator: {fileID: 0}
+  npcAnimator: {fileID: 720656998}
   audioSource: {fileID: 235046468}
   npcName: AI Assistant
   enableLipSync: 1
@@ -44536,7 +44541,19 @@ MonoBehaviour:
   idleAnimationTrigger: GoIdle
   OnNPCStartedSpeaking:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 919132149155446097, guid: 43307c056cf3dfa4189b7ef0d23c7c70, type: 3}
+        m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
+        m_MethodName: SetActive
+        m_Mode: 6
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 1
+        m_CallState: 2
   OnNPCFinishedSpeaking:
     m_PersistentCalls:
       m_Calls: []
