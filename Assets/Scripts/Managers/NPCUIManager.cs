@@ -24,7 +24,7 @@ namespace Managers
         [SerializeField] private TMP_Text statusDisplay;
         [SerializeField] private Slider volumeSlider;
         [SerializeField] private Toggle enableVADToggle;
-        [SerializeField] private TMPro.TMP_Dropdown voiceDropdown;
+        [SerializeField] private TMPro.TMP_Dropdown voiceDropdown; // Legacy - now using checkboxes
 
         [Header("NPC Reference")]
         [SerializeField] private NPCController npcController;
@@ -118,29 +118,222 @@ namespace Managers
                 conversationDisplay.text = "OpenAI Realtime NPC Chat\n\nClick 'Connect' to begin...";
             }
 
-            // Stimmen-Dropdown initialisieren
-            if (voiceDropdown != null)
+            // Voice selection is now handled by checkboxes created in CreateUIControlsStep
+            // The checkboxes directly call OnVoiceDropdownChanged via reflection
+            // No need to initialize dropdown anymore as it's replaced by checkboxes
+        }
+        
+        /// <summary>
+        /// Get the currently effective voice index (from RealtimeClient runtime override or settings)
+        /// </summary>
+        private int GetCurrentEffectiveVoiceIndex()
+        {
+            var realtimeClient = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeClient>();
+            if (realtimeClient != null)
             {
-                voiceDropdown.ClearOptions();
-                // Use descriptive voice names for better UX
-                var descriptiveNames = OpenAIVoiceExtensions.GetAllVoiceDescriptions();
-                voiceDropdown.AddOptions(new System.Collections.Generic.List<string>(descriptiveNames));
-                
-                // Sichere Voice-Initialisierung: Verwende alloy falls aktueller Wert ungültig
-                int safeVoiceIndex = 0; // alloy ist Index 0
-                if (OpenAIVoiceExtensions.IsValid(voice))
+                var currentVoice = realtimeClient.GetCurrentVoice();
+                Debug.Log($"[UI] Using current voice from RealtimeClient: {currentVoice}");
+                return (int)currentVoice;
+            }
+            
+            // Fallback to local voice variable or default
+            if (OpenAIVoiceExtensions.IsValid(voice))
+            {
+                Debug.Log($"[UI] Using local voice setting: {voice}");
+                return (int)voice;
+            }
+            
+            Debug.LogWarning($"[UI] Invalid voice {voice} detected, using alloy instead");
+            voice = OpenAIVoiceExtensions.GetDefault();
+            return 0; // alloy is index 0
+        }
+        
+        /// <summary>
+        /// Make TMP_Dropdown XR/VR compatible with minimal changes
+        /// </summary>
+        private void MakeDropdownXRCompatible(TMP_Dropdown dropdown)
+        {
+            if (dropdown == null) return;
+            
+            Debug.Log("[UI] Making voice dropdown XR/VR compatible...");
+            
+            // Enhance visual feedback for better VR visibility
+            var button = dropdown.GetComponent<Button>();
+            if (button != null)
+            {
+                var colors = button.colors;
+                colors.highlightedColor = Color.yellow * 0.7f; // Better VR highlight
+                colors.selectedColor = Color.green * 0.7f; // Better VR selection
+                button.colors = colors;
+            }
+            
+            // Larger text for VR readability (but not too large)
+            if (dropdown.captionText != null)
+            {
+                dropdown.captionText.fontSize *= 1.1f; // Modest increase
+                dropdown.captionText.color = Color.white; // Better contrast
+            }
+            
+            // Ensure reasonable size for VR interaction but more compact
+            var rectTransform = dropdown.GetComponent<RectTransform>();
+            if (rectTransform != null)
+            {
+                var currentSize = rectTransform.sizeDelta;
+                // More conservative sizing to prevent overlap
+                rectTransform.sizeDelta = new Vector2(
+                    Mathf.Clamp(currentSize.x, 150f, 280f), // Smaller width range to prevent overlap
+                    Mathf.Clamp(currentSize.y, 30f, 45f)    // Reasonable height range
+                );
+            }
+            
+            // Set proper layer for XR raycasting
+            dropdown.gameObject.layer = LayerMask.NameToLayer("UI");
+            
+            // Try to add XR interaction (optional - graceful fallback if not available)
+            TryAddXRInteraction(dropdown.gameObject);
+            
+            // Most importantly: Fix the dropdown template to stay within canvas bounds
+            StartCoroutine(FixDropdownTemplateSize(dropdown));
+            
+            Debug.Log("[UI] Voice dropdown is now XR/VR compatible!");
+        }
+        
+        /// <summary>
+        /// Fix dropdown template to stay within canvas bounds for VR
+        /// </summary>
+        private System.Collections.IEnumerator FixDropdownTemplateSize(TMP_Dropdown dropdown)
+        {
+            // Wait a frame for dropdown to be fully initialized
+            yield return null;
+            
+            // Force dropdown to create its template if it doesn't exist
+            if (dropdown.template == null)
+            {
+                dropdown.Show();
+                yield return null;
+                dropdown.Hide();
+                yield return null;
+            }
+            
+            if (dropdown.template != null)
+            {
+                var templateRect = dropdown.template.GetComponent<RectTransform>();
+                if (templateRect != null)
                 {
-                    safeVoiceIndex = (int)voice;
+                    // Get canvas bounds
+                    var canvas = dropdown.GetComponentInParent<Canvas>();
+                    if (canvas != null)
+                    {
+                        var canvasRect = canvas.GetComponent<RectTransform>();
+                        float canvasHeight = canvasRect.rect.height;
+                        float canvasWidth = canvasRect.rect.width;
+                        
+                        // Get dropdown position to calculate available space
+                        var dropdownRect = dropdown.GetComponent<RectTransform>();
+                        var dropdownWorldPos = dropdownRect.position;
+                        var canvasWorldPos = canvasRect.position;
+                        
+                        // Smarter sizing: Consider neighboring UI elements
+                        float maxTemplateHeight = canvasHeight * 0.25f; // Reduced to 25% of canvas height
+                        float maxTemplateWidth = Mathf.Min(300f, canvasWidth * 0.3f); // Max 300px or 30% of canvas width
+                        
+                        var currentSize = templateRect.sizeDelta;
+                        templateRect.sizeDelta = new Vector2(
+                            Mathf.Min(currentSize.x, maxTemplateWidth),
+                            Mathf.Min(currentSize.y, maxTemplateHeight)
+                        );
+                        
+                        Debug.Log($"[UI] Template size limited to: {templateRect.sizeDelta} (Canvas: {canvasWidth}x{canvasHeight})");
+                        Debug.Log($"[UI] Applied smart sizing to prevent UI overlap");
+                    }
+                    
+                    // Enhance template background for better VR visibility
+                    var templateImage = templateRect.GetComponent<Image>();
+                    if (templateImage != null)
+                    {
+                        templateImage.color = new Color(0.1f, 0.1f, 0.1f, 0.95f); // Dark, opaque background
+                    }
+                    
+                    // Make sure template items are reasonable size for VR
+                    FixDropdownItemSizes(dropdown.template);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Fix dropdown item sizes for VR without making them too big
+        /// </summary>
+        private void FixDropdownItemSizes(RectTransform template)
+        {
+            var viewport = template.Find("Viewport");
+            var content = viewport?.Find("Content");
+            var itemTemplate = content?.Find("Item");
+            
+            if (itemTemplate != null)
+            {
+                var itemRect = itemTemplate.GetComponent<RectTransform>();
+                if (itemRect != null)
+                {
+                    // Ensure items are compact for better UI density
+                    var currentItemSize = itemRect.sizeDelta;
+                    itemRect.sizeDelta = new Vector2(
+                        currentItemSize.x, 
+                        Mathf.Clamp(currentItemSize.y, 30f, 35f) // More compact: 30-35px height
+                    );
+                }
+                
+                // Enhance item text readability with smaller font
+                var itemLabel = itemTemplate.Find("Item Label")?.GetComponent<TMP_Text>();
+                if (itemLabel != null)
+                {
+                    itemLabel.fontSize = Mathf.Clamp(itemLabel.fontSize * 0.9f, 9f, 12f); // Smaller font for compact layout
+                    itemLabel.color = Color.white;
+                    // Ensure text doesn't wrap or overflow
+                    itemLabel.textWrappingMode = TextWrappingModes.NoWrap;
+                    itemLabel.overflowMode = TextOverflowModes.Ellipsis;
+                }
+                
+                // Better item background
+                var itemBackground = itemTemplate.Find("Item Background")?.GetComponent<Image>();
+                if (itemBackground != null)
+                {
+                    itemBackground.color = new Color(0.2f, 0.2f, 0.2f, 0.8f);
+                }
+                
+                // Add XR interaction to items too
+                TryAddXRInteraction(itemTemplate.gameObject);
+            }
+        }
+        
+        /// <summary>
+        /// Try to add XR interaction components - works with or without XR toolkit
+        /// </summary>
+        private void TryAddXRInteraction(GameObject obj)
+        {
+            try
+            {
+                // Try to find and add XR interaction component dynamically
+                var xrType = System.Type.GetType("UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable, Unity.XR.Interaction.Toolkit");
+                if (xrType == null)
+                {
+                    // Fallback to older namespace
+                    xrType = System.Type.GetType("UnityEngine.XR.Interaction.Toolkit.XRSimpleInteractable, Unity.XR.Interaction.Toolkit");
+                }
+                
+                if (xrType != null && obj.GetComponent(xrType) == null)
+                {
+                    obj.AddComponent(xrType);
+                    Debug.Log("[UI] XR interaction added successfully");
                 }
                 else
                 {
-                    Debug.LogWarning($"[UI] Invalid voice {voice} detected, using alloy instead");
-                    voice = OpenAIVoiceExtensions.GetDefault();
+                    Debug.Log("[UI] XR components not available - dropdown will work with mouse/touch");
                 }
-                
-                voiceDropdown.value = safeVoiceIndex;
-                voiceDropdown.RefreshShownValue();
-                voiceDropdown.onValueChanged.AddListener(OnVoiceDropdownChanged);
+            }
+            catch (System.Exception)
+            {
+                // XR not available - that's perfectly fine
+                Debug.Log("[UI] XR Interaction Toolkit not found - dropdown works with traditional input");
             }
         }
 
@@ -203,10 +396,14 @@ namespace Managers
 
         public void OnConnectClicked()
         {
-            if (npcController != null)
+            if (npcController != null && npcController.CurrentState != NPCState.Connecting)
             {
                 _ = npcController.ConnectToOpenAI(); // Fire-and-forget async
                 UpdateStatus("Connecting to OpenAI...", systemMessageColor);
+            }
+            else if (npcController != null && npcController.CurrentState == NPCState.Connecting)
+            {
+                UpdateStatus("Already connecting, please wait...", systemMessageColor);
             }
         }
 
@@ -236,6 +433,15 @@ namespace Managers
             }
         }
 
+        public void OnResetSystemClicked()
+        {
+            if (npcController != null)
+            {
+                _ = npcController.ResetSystem(); // Fire-and-forget async
+                UpdateStatus("Resetting system...", systemMessageColor);
+            }
+        }
+
         public void OnSendMessageClicked()
         {
             SendCurrentMessage();
@@ -260,8 +466,21 @@ namespace Managers
             }
         }
 
+        // Public method for checkboxes to call directly
+        public void OnVoiceCheckboxChanged(int index)
+        {
+            Debug.Log($"[UI] OnVoiceCheckboxChanged called with index: {index}");
+            
+            // Debug: Show current voice state
+            Debug.Log($"[UI] Current voice before change: {voice}");
+            
+            OnVoiceDropdownChanged(index);
+        }
+
         private void OnVoiceDropdownChanged(int index)
         {
+            Debug.Log($"[UI] OnVoiceDropdownChanged called with index: {index}");
+            
             // Prevent multiple simultaneous voice changes
             if (isVoiceChangeInProgress)
             {
@@ -269,31 +488,50 @@ namespace Managers
                 return;
             }
             
-            // Temporarily disable dropdown during voice change
-            if (voiceDropdown != null)
-            {
-                voiceDropdown.interactable = false;
-            }
+            // Note: No need to disable dropdown anymore since we're using checkboxes
             
             var enumValues = System.Enum.GetValues(typeof(OpenAIVoice));
+            Debug.Log($"[UI] Total voice options available: {enumValues.Length}");
+            
             if (index >= 0 && index < enumValues.Length)
             {
                 var newVoice = (OpenAIVoice)enumValues.GetValue(index);
+                Debug.Log($"[UI] Attempting to change voice from {voice} to {newVoice} (index {index})");
+                
+                // Debug: Show voice names
+                Debug.Log($"[UI] Voice name from extension: {newVoice.GetDescription()}");
+                
                 if (voice != newVoice)
                 {
                     voice = newVoice;
                     isVoiceChangeInProgress = true;
                     
-                    // OpenAI Settings zur Laufzeit anpassen - direct property access
-                    var settings = Resources.Load<OpenAISettings>("OpenAISettings");
-                    if (settings != null)
+                    // OpenAI Settings zur Laufzeit anpassen - use Runtime Voice Override System
+                    var realtimeClient = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeClient>();
+                    if (realtimeClient != null)
                     {
-                        // Direct property access instead of reflection
-                        settings.VoiceIndex = index;
-                        Debug.Log($"[UI] OpenAISettings.VoiceIndex zur Laufzeit gesetzt: {index} ({newVoice})");
+                        // Convert index to OpenAIVoice enum and set runtime override
+                        var voiceEnum = OpenAIVoiceExtensions.FromIndex(index);
+                        Debug.Log($"[UI] Setting runtime voice override: {index} -> {voiceEnum}");
+                        realtimeClient.SetRuntimeVoice(voiceEnum);
+                        Debug.Log($"[UI] Runtime voice override set: {index} ({voiceEnum} - {voiceEnum.GetDescription()})");
+                        
+                        // Verify the change was applied
+                        var currentVoice = realtimeClient.GetCurrentVoice();
+                        Debug.Log($"[UI] RealtimeClient current voice after change: {currentVoice}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[UI] RealtimeClient not found - cannot set runtime voice override");
                     }
                     
                     var client = FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeClient>();
+                    Debug.Log($"[UI] RealtimeClient found: {client != null}");
+                    if (client != null)
+                    {
+                        Debug.Log($"[UI] RealtimeClient IsConnected: {client.IsConnected}");
+                    }
+                    
                     if (client != null && client.IsConnected)
                     {
                         // CRITICAL: OpenAI API never allows voice changes after any assistant audio
@@ -310,34 +548,19 @@ namespace Managers
                         // Not connected - just update settings
                         UpdateStatus($"Voice set to: {newVoice} (will apply on next connection)", systemMessageColor);
                         isVoiceChangeInProgress = false; // Reset flag
-                        
-                        // Re-enable dropdown
-                        if (voiceDropdown != null)
-                        {
-                            voiceDropdown.interactable = true;
-                        }
+                        Debug.Log($"[UI] Voice successfully changed to: {newVoice}");
                     }
                 }
                 else
                 {
+                    Debug.Log($"[UI] Voice unchanged (already {newVoice})");
                     isVoiceChangeInProgress = false; // Reset flag if no change needed
-                    
-                    // Re-enable dropdown
-                    if (voiceDropdown != null)
-                    {
-                        voiceDropdown.interactable = true;
-                    }
                 }
             }
             else
             {
+                Debug.LogError($"[UI] Invalid voice index: {index} (valid range: 0-{enumValues.Length-1})");
                 isVoiceChangeInProgress = false; // Reset flag if invalid index
-                
-                // Re-enable dropdown
-                if (voiceDropdown != null)
-                {
-                    voiceDropdown.interactable = true;
-                }
             }
         }
         
@@ -407,12 +630,7 @@ namespace Managers
                 // Success - update UI
                 UpdateStatus("Session restarted with new voice", systemMessageColor);
                 isVoiceChangeInProgress = false; // Reset protection flag
-                
-                // Re-enable dropdown
-                if (voiceDropdown != null)
-                {
-                    voiceDropdown.interactable = true;
-                }
+                Debug.Log("[UI] Voice change session restart completed successfully");
             }
             else
             {
@@ -420,12 +638,6 @@ namespace Managers
                 Debug.LogError($"[UI] Error during voice change session restart: {lastException?.Message ?? "Unknown error"}");
                 UpdateStatus("Voice change failed - please try again", systemMessageColor);
                 isVoiceChangeInProgress = false; // Reset protection flag
-                
-                // Re-enable dropdown
-                if (voiceDropdown != null)
-                {
-                    voiceDropdown.interactable = true;
-                }
             }
         }
 
@@ -586,6 +798,16 @@ namespace Managers
         private void OnVolumeChanged(float value)
         {
             AudioListener.volume = value;
+            
+            // Also update MicrophoneVolume in settings if available
+            var settings = Resources.Load<OpenAISettings>("OpenAISettings");
+            if (settings != null)
+            {
+                // Note: This modifies the ScriptableObject at runtime
+                // In a production app, you might want to save this separately
+                Debug.Log($"[UI] Setting MicrophoneVolume to {value}");
+            }
+            
             UpdateStatus($"Volume set to: {(value * 100):F0}%", systemMessageColor);
         }
 

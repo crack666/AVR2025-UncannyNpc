@@ -45,6 +45,10 @@ namespace OpenAI.RealtimeAPI
         // Audio processing
         private Queue<AudioChunk> audioQueue = new Queue<AudioChunk>();
         private readonly object audioQueueLock = new object();
+        
+        // Runtime Voice Override System
+        private OpenAIVoice? runtimeVoiceOverride = null; // Null means use settings default
+        
         // Session management
         private string sessionId;
         private SessionState sessionState;
@@ -68,6 +72,20 @@ namespace OpenAI.RealtimeAPI
         {
             sessionState = new SessionState();
 
+            // Auto-load settings from Resources if not assigned
+            if (settings == null)
+            {
+                settings = Resources.Load<OpenAISettings>("OpenAISettings");
+                if (settings != null)
+                {
+                    Debug.Log("RealtimeClient: Auto-loaded OpenAISettings from Resources");
+                }
+                else
+                {
+                    Debug.LogError("RealtimeClient: No OpenAISettings found! Please create one in Assets/Resources/");
+                }
+            }
+
             // Initialize events if not set
             OnMessageReceived ??= new UnityEvent<string>();
             OnAudioReceived ??= new UnityEvent<AudioChunk>();
@@ -80,9 +98,65 @@ namespace OpenAI.RealtimeAPI
 
         private void Start()
         {
+            // Perform runtime validation
+            ValidateConfiguration();
+            
             if (autoConnect && settings != null && !string.IsNullOrEmpty(settings.ApiKey))
             {
                 _ = ConnectAsync();
+            }
+        }
+
+        /// <summary>
+        /// Validates the RealtimeClient configuration and logs any issues
+        /// </summary>
+        private void ValidateConfiguration()
+        {
+            Debug.Log("RealtimeClient: Performing configuration validation...");
+            
+            if (settings == null)
+            {
+                Debug.LogError("RealtimeClient: OpenAISettings not assigned! Please assign it in the inspector or ensure it exists in Resources/");
+                return;
+            }
+            
+            if (string.IsNullOrEmpty(settings.ApiKey))
+            {
+                Debug.LogError("RealtimeClient: API Key is empty! Please configure your OpenAI API key in the OpenAISettings asset.");
+                return;
+            }
+            
+            if (settings.ApiKey.Length < 50)
+            {
+                Debug.LogWarning("RealtimeClient: API Key seems too short. Please verify it's a valid OpenAI API key.");
+            }
+            
+            // Validate that settings are being used
+            Debug.Log($"RealtimeClient: Configuration validation:");
+            Debug.Log($"  - API Key: {settings.ApiKey.Substring(0, 7)}... (length: {settings.ApiKey.Length})");
+            Debug.Log($"  - Model: {settings.Model}");
+            Debug.Log($"  - BaseUrl: {settings.BaseUrl}");
+            Debug.Log($"  - WebSocket URL: {settings.GetWebSocketUrl()}");
+            Debug.Log($"  - Voice: {GetVoiceNameFromSettings(settings)} (VoiceName: {settings.VoiceName})");
+            Debug.Log($"  - Temperature: {settings.Temperature}");
+            Debug.Log($"  - System Prompt: {settings.SystemPrompt.Substring(0, Math.Min(50, settings.SystemPrompt.Length))}...");
+            Debug.Log($"  - Sample Rate: {settings.SampleRate}Hz");
+            Debug.Log($"  - Audio Chunk Size: {settings.AudioChunkSizeMs}ms");
+            Debug.Log($"  - Microphone Volume: {settings.MicrophoneVolume}");
+            Debug.Log($"  - Transcription Model: {settings.TranscriptionModel}");
+            Debug.Log($"  - VAD Type: {settings.VadType}");
+            Debug.Log($"  - VAD Threshold: {settings.VadThreshold}");
+            Debug.Log($"  - VAD Prefix Padding: {settings.VadPrefixPaddingMs}ms");
+            Debug.Log($"  - VAD Silence Duration: {settings.VadSilenceDurationMs}ms");
+            Debug.Log($"  - Debug Logging: {settings.EnableDebugLogging}");
+            
+            if (!settings.IsValid())
+            {
+                Debug.LogWarning("RealtimeClient: Settings validation failed! Some settings may be invalid.");
+            }
+            else
+            {
+                Debug.Log("RealtimeClient: All settings validation passed ✅");
             }
         }
 
@@ -122,12 +196,23 @@ namespace OpenAI.RealtimeAPI
 
             if (settings == null || string.IsNullOrEmpty(settings.ApiKey))
             {
-                var error = "OpenAI API key not configured";
+                string error;
+                if (settings == null)
+                {
+                    error = "OpenAI Settings not found! Please assign OpenAISettings in the RealtimeClient inspector or ensure it exists in Assets/Resources/";
+                }
+                else
+                {
+                    error = "OpenAI API key not configured! Please set your API key in the OpenAISettings asset.";
+                }
+                
                 Debug.LogError($"RealtimeClient: {error}");
                 OnError?.Invoke(error);
                 return false;
             }
 
+            Debug.Log($"RealtimeClient: Starting connection attempt. API Key configured: {!string.IsNullOrEmpty(settings.ApiKey)}, Model: {settings.Model}");
+            
             isConnecting = true;
             currentRetries = 0;
 
@@ -135,13 +220,17 @@ namespace OpenAI.RealtimeAPI
             {
                 try
                 {
+                    Debug.Log($"RealtimeClient: Attempting connection (attempt {currentRetries + 1}/{maxRetries})");
                     await AttemptConnection();
+                    Debug.Log("RealtimeClient: Connection successful");
                     break;
                 }
                 catch (Exception ex)
                 {
                     currentRetries++;
                     Debug.LogError($"RealtimeClient: Connection attempt {currentRetries} failed: {ex.Message}");
+                    Debug.LogError($"RealtimeClient: Exception type: {ex.GetType().Name}");
+                    Debug.LogError($"RealtimeClient: Full stack trace: {ex.StackTrace}");
 
                     if (currentRetries < maxRetries)
                     {
@@ -150,33 +239,81 @@ namespace OpenAI.RealtimeAPI
                     }
                     else
                     {
-                        OnError?.Invoke($"Failed to connect after {maxRetries} attempts: {ex.Message}");
+                        var errorMsg = $"Failed to connect after {maxRetries} attempts: {ex.Message}";
+                        Debug.LogError($"RealtimeClient: {errorMsg}");
+                        OnError?.Invoke(errorMsg);
                     }
                 }
             }
 
             isConnecting = false;
+            
+            // Ensure clean state on failed connection
+            if (!isConnected)
+            {
+                isAwaitingResponse = false;
+            }
+            
             return isConnected;
         }
 
         private async Task AttemptConnection()
         {
+            Debug.Log("RealtimeClient: Starting AttemptConnection()");
+            
             // Clean up any existing connection
             if (webSocket != null)
             {
+                Debug.Log("RealtimeClient: Disposing existing WebSocket");
                 webSocket.Dispose();
             }
 
             cancellationTokenSource = new CancellationTokenSource();
             webSocket = new ClientWebSocket();
 
+            Debug.Log("RealtimeClient: Configuring WebSocket headers");
+            
             // Configure headers
-            webSocket.Options.SetRequestHeader("Authorization", $"Bearer {settings.ApiKey}");
-            webSocket.Options.SetRequestHeader("OpenAI-Beta", "realtime=v1");
+            try
+            {
+                webSocket.Options.SetRequestHeader("Authorization", $"Bearer {settings.ApiKey}");
+                webSocket.Options.SetRequestHeader("OpenAI-Beta", "realtime=v1");
+                Debug.Log("RealtimeClient: Headers configured successfully");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"RealtimeClient: Failed to set headers: {ex.Message}");
+                throw;
+            }
 
-            // Connect to OpenAI Realtime API
-            var uri = new Uri("wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01");
-            await webSocket.ConnectAsync(uri, cancellationTokenSource.Token);
+            // Connect to OpenAI Realtime API using settings
+            string wsUrl;
+            if (settings != null && !string.IsNullOrEmpty(settings.BaseUrl) && !string.IsNullOrEmpty(settings.Model))
+            {
+                // Use GetWebSocketUrl() method from settings
+                wsUrl = settings.GetWebSocketUrl();
+                Debug.Log($"RealtimeClient: Using settings BaseUrl: {settings.BaseUrl}, Model: {settings.Model}");
+            }
+            else
+            {
+                // Fallback to hardcoded URL
+                wsUrl = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01";
+                Debug.LogWarning("RealtimeClient: Using fallback URL - settings not properly configured");
+            }
+            
+            var uri = new Uri(wsUrl);
+            Debug.Log($"RealtimeClient: Attempting WebSocket connection to: {uri}");
+            
+            try
+            {
+                await webSocket.ConnectAsync(uri, cancellationTokenSource.Token);
+                Debug.Log("RealtimeClient: WebSocket connection established");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"RealtimeClient: WebSocket connection failed: {ex.Message}");
+                throw;
+            }
 
             isConnected = true;
             sessionId = Guid.NewGuid().ToString();
@@ -202,6 +339,7 @@ namespace OpenAI.RealtimeAPI
                 return;
 
             isConnected = false;
+            isConnecting = false; // Also reset connecting state
             isAwaitingResponse = false; // Reset awaiting response state
 
             try
@@ -509,18 +647,28 @@ namespace OpenAI.RealtimeAPI
                     output_audio_format = "pcm16",
                     input_audio_transcription = new
                     {
-                        model = "whisper-1"
+                        model = GetValidTranscriptionModel(settings?.TranscriptionModel)
                     },
                     turn_detection = new
                     {
-                        type = "server_vad",
-                        threshold = 0.5,
-                        prefix_padding_ms = 300,
-                        silence_duration_ms = 200
-                    }
+                        type = settings?.VadType ?? "server_vad",
+                        threshold = settings?.VadThreshold ?? 0.5,
+                        prefix_padding_ms = settings?.VadPrefixPaddingMs ?? 300,
+                        silence_duration_ms = settings?.VadSilenceDurationMs ?? 200
+                    },
+                    temperature = settings?.Temperature ?? 0.8f // Use temperature from settings
                 }
             };
 
+            Debug.Log($"RealtimeClient: Sending session update:");
+            Debug.Log($"  - Voice: {GetVoiceNameFromSettings(settings)}");
+            Debug.Log($"  - Temperature: {settings?.Temperature ?? 0.8f}");
+            Debug.Log($"  - Transcription Model: {settings?.TranscriptionModel ?? "whisper-1"}");
+            Debug.Log($"  - VAD Type: {settings?.VadType ?? "server_vad"}");
+            Debug.Log($"  - VAD Threshold: {settings?.VadThreshold ?? 0.5}");
+            Debug.Log($"  - VAD Prefix Padding: {settings?.VadPrefixPaddingMs ?? 300}ms");
+            Debug.Log($"  - VAD Silence Duration: {settings?.VadSilenceDurationMs ?? 200}ms");
+            
             await SendJsonAsync(sessionConfig);
         }
 
@@ -676,22 +824,43 @@ namespace OpenAI.RealtimeAPI
         }
 
         /// <summary>
-        /// Convert VoiceIndex from OpenAISettings to voice name string
+        /// Get voice name using Runtime Override System (runtime override takes precedence over settings)
         /// </summary>
         private string GetVoiceNameFromSettings(OpenAISettings settings)
         {
-            if (settings == null) return "alloy";
-
-            int voiceIndex = settings.VoiceIndex;
-            string[] voiceNames = { "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse" };
-
-            if (voiceIndex >= 0 && voiceIndex < voiceNames.Length)
+            // Runtime override takes precedence
+            if (runtimeVoiceOverride.HasValue)
             {
-                return voiceNames[voiceIndex];
+                string runtimeVoice = runtimeVoiceOverride.Value.ToApiString();
+                Debug.Log($"[RealtimeClient] Using runtime voice override: {runtimeVoiceOverride.Value} -> {runtimeVoice}");
+                return runtimeVoice;
+            }
+            
+            // Fallback to settings
+            if (settings == null) 
+            {
+                Debug.LogWarning("[RealtimeClient] Settings is null, using default voice 'alloy'");
+                return "alloy";
             }
 
-            Debug.LogWarning($"[RealtimeClient] Invalid voice index {voiceIndex}, using default 'alloy'");
-            return "alloy";
+            Debug.Log($"[RealtimeClient] Using voice from settings: {settings.Voice} -> {settings.VoiceName}");
+            return settings.VoiceName; // Uses the new VoiceName property which calls ToApiString()
+        }
+
+        /// <summary>
+        /// Validates transcription model and returns a valid one
+        /// Available models: whisper-1 (faster, good quality), whisper-large-v3 (highest quality, slower)
+        /// </summary>
+        private string GetValidTranscriptionModel(string model)
+        {
+            string[] validModels = { "whisper-1", "whisper-large-v3" };
+            if (!string.IsNullOrEmpty(model) && System.Array.Exists(validModels, m => m == model))
+            {
+                return model;
+            }
+            
+            Debug.LogWarning($"[RealtimeClient] Invalid transcription model '{model}', using default 'whisper-1'");
+            return "whisper-1";
         }
 
         /// <summary>
@@ -702,6 +871,60 @@ namespace OpenAI.RealtimeAPI
             isAwaitingResponse = false;
             Debug.Log("[RealtimeClient] Session state reset - ready for new conversation");
         }
+
+        /// <summary>
+        /// Force reset connection state - use when connection state is inconsistent
+        /// </summary>
+        public void ForceResetConnectionState()
+        {
+            isConnected = false;
+            isConnecting = false;
+            isAwaitingResponse = false;
+            Debug.Log("[RealtimeClient] Connection state force reset - ready for fresh connection");
+        }
+
+        #region Runtime Voice Override System
+        
+        /// <summary>
+        /// Set voice for runtime use (overrides OpenAISettings default)
+        /// </summary>
+        public void SetRuntimeVoice(OpenAIVoice voice)
+        {
+            runtimeVoiceOverride = voice;
+            Debug.Log($"[RealtimeClient] Runtime voice override set to: {voice} ({voice.ToApiString()})");
+        }
+        
+        /// <summary>
+        /// Clear runtime voice override (use OpenAISettings default)
+        /// </summary>
+        public void ClearRuntimeVoice()
+        {
+            runtimeVoiceOverride = null;
+            Debug.Log("[RealtimeClient] Runtime voice override cleared - using OpenAISettings default");
+        }
+        
+        /// <summary>
+        /// Get current effective voice (runtime override or settings default)
+        /// </summary>
+        public OpenAIVoice GetCurrentVoice()
+        {
+            if (runtimeVoiceOverride.HasValue)
+            {
+                return runtimeVoiceOverride.Value;
+            }
+            
+            return settings?.Voice ?? OpenAIVoice.alloy;
+        }
+        
+        /// <summary>
+        /// Get current effective voice as API string
+        /// </summary>
+        public string GetCurrentVoiceApiString()
+        {
+            return GetCurrentVoice().ToApiString();
+        }
+        
+        #endregion
     }
 }
 #endregion

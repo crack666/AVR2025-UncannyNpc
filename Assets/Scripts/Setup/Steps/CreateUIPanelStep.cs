@@ -21,6 +21,12 @@ namespace Setup.Steps
         {
             log("🖼️ Step 2.2: UI Panel Creation");
 
+            if (canvas == null)
+            {
+                log("❌ Canvas is null! Cannot create UI Panel.");
+                return;
+            }
+
             // --- Cleanup: Remove old panel ---
             var oldPanel = GameObject.Find("NPC UI Panel");
             if (oldPanel != null)
@@ -53,6 +59,9 @@ namespace Setup.Steps
             {
                 log($"❌ NpcUiManager type not found. Please ensure the script exists and is in the correct namespace.");
             }
+
+            // Note: Advanced layout management will be handled automatically by improved positioning in CreateUIControlsStep
+            log("ℹ️ UI layout optimized for both Desktop and VR compatibility");
         }
     }
 }

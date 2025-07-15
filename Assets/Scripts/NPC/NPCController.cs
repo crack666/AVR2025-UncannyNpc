@@ -195,6 +195,7 @@ namespace NPC
             if (realtimeClient != null)
             {
                 SetState(NPCState.Connecting);
+                
                 var success = await realtimeClient.ConnectAsync();
 
                 if (success)
@@ -682,6 +683,40 @@ namespace NPC
         }
 
         #endregion
+
+        /// <summary>
+        /// Complete system reset - use when in error state or inconsistent state
+        /// </summary>
+        public async System.Threading.Tasks.Task ResetSystem()
+        {
+            Debug.Log($"[NPCController] Performing complete system reset for {npcName}");
+            
+            try
+            {
+                // Force stop everything
+                if (audioManager != null)
+                {
+                    audioManager.ForceStopAllRecording();
+                }
+                
+                // Reset client state
+                if (realtimeClient != null)
+                {
+                    realtimeClient.ForceResetConnectionState();
+                    await realtimeClient.DisconnectAsync();
+                    await System.Threading.Tasks.Task.Delay(200); // Allow full cleanup
+                }
+                
+                // Reset to clean state
+                SetState(NPCState.Idle);
+                Debug.Log($"[NPCController] System reset complete for {npcName}");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[NPCController] Error during system reset: {ex.Message}");
+                SetState(NPCState.Error);
+            }
+        }
     }
 
     public enum NPCState

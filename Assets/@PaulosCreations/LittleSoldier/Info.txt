@@ -1,0 +1,3 @@
+Little Soldier
+
+1.0 : initial release.

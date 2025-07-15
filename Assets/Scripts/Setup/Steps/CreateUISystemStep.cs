@@ -17,13 +17,14 @@ namespace Setup.Steps
         }
 
         // Synchronous version for Editor/Setup use
+        // Note: canvasMode parameter is ignored in XR mode - always uses World Space
         public void ExecuteSync(Vector2 panelSize, Vector2 panelPosition, string canvasMode, Camera camera, float worldCanvasScale)
         {
-            log("🎨 Step 2: UI System Creation");
+            log("🎨 Step 2: XR UI System Creation");
 
-            // 1. Setup Canvas
+            // 1. Setup XR Canvas (canvasMode is ignored - XR requires World Space)
             var canvasStep = new SetupCanvasStep(log);
-            canvasStep.Execute(canvasMode, camera, worldCanvasScale);
+            canvasStep.Execute("WorldSpace", camera, worldCanvasScale); // Force World Space for XR
             var canvas = canvasStep.Canvas;
 
             // 2. Create Panel and UI Manager
@@ -45,7 +46,16 @@ namespace Setup.Steps
             var controlsStep = new CreateUIControlsStep(log, panel);
             controlsStep.Execute();
 
-            // 4. Link all references to the UI Manager
+            // 4. Setup XR Interaction guidance
+            log("🎯 XR Interaction Setup Guidance:");
+            log("   • Canvas is configured with both GraphicRaycaster and TrackedDeviceGraphicRaycaster");
+            log("   • EventSystem has XRUIInputModule and PointableCanvasModule (if Meta XR SDK available)");
+            log("   • Canvas has RayInteractable and PointableCanvas components (if Meta XR SDK available)");
+            log("   • Add XR Ray Interactor components to hand/controller objects");
+            log("   • Ensure 'Enable UI Interaction' is checked on Ray Interactors");
+            log("   • Configure Interaction Layer Masks as needed");
+
+            // 5. Link all references to the UI Manager
             var linkStep = new LinkUIManagerReferencesStep(log, uiManager);
             linkStep.Execute(
                 buttonsStep.ConnectButton, buttonsStep.DisconnectButton, buttonsStep.StartConversationButton, buttonsStep.StopConversationButton, buttonsStep.SendMessageButton,
