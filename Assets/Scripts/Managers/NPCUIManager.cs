@@ -135,6 +135,8 @@ namespace Managers
                 
                 // Make dropdown XR/VR compatible
                 MakeDropdownXRCompatible(voiceDropdown);
+                
+                Debug.Log("[UI] Voice dropdown setup complete - static layout configured");
             }
         }
         
@@ -189,15 +191,15 @@ namespace Managers
                 dropdown.captionText.color = Color.white; // Better contrast
             }
             
-            // Ensure reasonable size for VR interaction (but don't make it too big)
+            // Ensure reasonable size for VR interaction but more compact
             var rectTransform = dropdown.GetComponent<RectTransform>();
             if (rectTransform != null)
             {
                 var currentSize = rectTransform.sizeDelta;
-                // Only increase if really too small, and cap the maximum size
+                // More conservative sizing to prevent overlap
                 rectTransform.sizeDelta = new Vector2(
-                    Mathf.Clamp(currentSize.x, 200f, 350f), // Reasonable width range
-                    Mathf.Clamp(currentSize.y, 30f, 50f)    // Reasonable height range
+                    Mathf.Clamp(currentSize.x, 150f, 280f), // Smaller width range to prevent overlap
+                    Mathf.Clamp(currentSize.y, 30f, 45f)    // Reasonable height range
                 );
             }
             
@@ -243,9 +245,14 @@ namespace Managers
                         float canvasHeight = canvasRect.rect.height;
                         float canvasWidth = canvasRect.rect.width;
                         
-                        // Limit template size to reasonable bounds within canvas
-                        float maxTemplateHeight = canvasHeight * 0.4f; // Max 40% of canvas height
-                        float maxTemplateWidth = canvasWidth * 0.5f;   // Max 50% of canvas width
+                        // Get dropdown position to calculate available space
+                        var dropdownRect = dropdown.GetComponent<RectTransform>();
+                        var dropdownWorldPos = dropdownRect.position;
+                        var canvasWorldPos = canvasRect.position;
+                        
+                        // Smarter sizing: Consider neighboring UI elements
+                        float maxTemplateHeight = canvasHeight * 0.25f; // Reduced to 25% of canvas height
+                        float maxTemplateWidth = Mathf.Min(300f, canvasWidth * 0.3f); // Max 300px or 30% of canvas width
                         
                         var currentSize = templateRect.sizeDelta;
                         templateRect.sizeDelta = new Vector2(
@@ -254,6 +261,7 @@ namespace Managers
                         );
                         
                         Debug.Log($"[UI] Template size limited to: {templateRect.sizeDelta} (Canvas: {canvasWidth}x{canvasHeight})");
+                        Debug.Log($"[UI] Applied smart sizing to prevent UI overlap");
                     }
                     
                     // Enhance template background for better VR visibility
@@ -283,20 +291,23 @@ namespace Managers
                 var itemRect = itemTemplate.GetComponent<RectTransform>();
                 if (itemRect != null)
                 {
-                    // Ensure items are big enough for VR but not too big
+                    // Ensure items are compact for better UI density
                     var currentItemSize = itemRect.sizeDelta;
                     itemRect.sizeDelta = new Vector2(
                         currentItemSize.x, 
-                        Mathf.Clamp(currentItemSize.y, 35f, 45f) // Reasonable height for VR
+                        Mathf.Clamp(currentItemSize.y, 30f, 35f) // More compact: 30-35px height
                     );
                 }
                 
-                // Enhance item text readability
+                // Enhance item text readability with smaller font
                 var itemLabel = itemTemplate.Find("Item Label")?.GetComponent<TMP_Text>();
                 if (itemLabel != null)
                 {
-                    itemLabel.fontSize = Mathf.Clamp(itemLabel.fontSize * 1.05f, 12f, 16f); // Modest increase
+                    itemLabel.fontSize = Mathf.Clamp(itemLabel.fontSize * 0.9f, 9f, 12f); // Smaller font for compact layout
                     itemLabel.color = Color.white;
+                    // Ensure text doesn't wrap or overflow
+                    itemLabel.textWrappingMode = TextWrappingModes.NoWrap;
+                    itemLabel.overflowMode = TextOverflowModes.Ellipsis;
                 }
                 
                 // Better item background

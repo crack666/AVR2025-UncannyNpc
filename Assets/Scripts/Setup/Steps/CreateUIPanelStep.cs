@@ -59,6 +59,9 @@ namespace Setup.Steps
             {
                 log($"❌ NpcUiManager type not found. Please ensure the script exists and is in the correct namespace.");
             }
+
+            // Note: Advanced layout management will be handled automatically by improved positioning in CreateUIControlsStep
+            log("ℹ️ UI layout optimized for both Desktop and VR compatibility");
         }
     }
 }

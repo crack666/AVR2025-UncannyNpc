@@ -42,8 +42,9 @@ namespace Setup.Steps
             GameObject dropdownGO = new GameObject("Voice Dropdown", typeof(RectTransform));
             dropdownGO.transform.SetParent(panel.transform, false);
             var rect = dropdownGO.GetComponent<RectTransform>();
+            // Reduzierte Breite um Überlappung mit Volume Slider zu vermeiden
             rect.anchorMin = new Vector2(0.1f, 0.13f);
-            rect.anchorMax = new Vector2(0.6f, 0.18f); // Breiter für längere Texte
+            rect.anchorMax = new Vector2(0.42f, 0.18f); // Schmaler, um Platz für Slider zu schaffen
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
@@ -62,7 +63,7 @@ namespace Setup.Steps
             var dropdown = dropdownGO.AddComponent<TMP_Dropdown>();
             dropdown.targetGraphic = bgImage;
 
-            // Label - Verbesserter Text-Overflow
+            // Label - Verbesserter Text-Overflow für schmaleres Dropdown
             var labelGO = new GameObject("Label", typeof(RectTransform));
             labelGO.transform.SetParent(dropdownGO.transform, false);
             var labelRect = labelGO.GetComponent<RectTransform>();
@@ -72,11 +73,11 @@ namespace Setup.Steps
             labelRect.offsetMax = new Vector2(-25, 0);
             var label = labelGO.AddComponent<TextMeshProUGUI>();
             label.text = "Voice: alloy";
-            label.fontSize = 11; // Etwas kleiner
+            label.fontSize = 10; // Noch kleiner für schmaleres Dropdown
             label.alignment = TextAlignmentOptions.Left;
             label.color = Color.white;
             label.textWrappingMode = TextWrappingModes.NoWrap;
-            label.overflowMode = TextOverflowModes.Ellipsis;
+            label.overflowMode = TextOverflowModes.Ellipsis; // Wichtig für zu lange Texte
             dropdown.captionText = label;
 
             // Arrow
@@ -90,7 +91,7 @@ namespace Setup.Steps
             var arrowImage = arrowGO.AddComponent<Image>();
             arrowImage.color = Color.white;
 
-            // Template - Optimale Größe für ca. 5-6 sichtbare Items mit Scrolling
+            // Template - Kompaktere Größe und intelligent positioniert
             var templateGO = new GameObject("Template", typeof(RectTransform));
             templateGO.transform.SetParent(dropdownGO.transform, false);
             templateGO.SetActive(false);
@@ -99,7 +100,8 @@ namespace Setup.Steps
             templateRect.anchorMax = new Vector2(1, 0);
             templateRect.pivot = new Vector2(0.5f, 1); // Top-center pivot
             templateRect.anchoredPosition = new Vector2(0, 0); // Direkt unterhalb des Dropdowns
-            templateRect.sizeDelta = new Vector2(250, 240); // 6 Items * 40px = 240px visible height
+            // Intelligente Breite: Maximal 300px, aber mindestens die Breite des Dropdowns
+            templateRect.sizeDelta = new Vector2(300, 200); // Kompakter: 5 Items * 40px = 200px visible height
             var templateImage = templateGO.AddComponent<Image>();
             templateImage.color = new Color(0.15f, 0.15f, 0.15f, 0.98f);
 
@@ -124,7 +126,7 @@ namespace Setup.Steps
             contentRect.anchorMax = new Vector2(1, 1); // Rechts-oben anchor  
             contentRect.pivot = new Vector2(0.5f, 1); // Top-center pivot
             contentRect.anchoredPosition = Vector2.zero; // Startet ganz oben
-            contentRect.sizeDelta = new Vector2(0, 320); // Volle Höhe für alle 8 Items (8*40=320px)
+            contentRect.sizeDelta = new Vector2(0, 280); // Reduziert: 7 Items * 40px = 280px für etwas kompakteres Layout
             
             // VerticalLayoutGroup für automatisches Layout der Dropdown-Items
             var layoutGroup = contentGO.AddComponent<VerticalLayoutGroup>();
@@ -159,12 +161,12 @@ namespace Setup.Steps
             itemRect.anchorMin = new Vector2(0, 1); // Top-left anchor für VLG
             itemRect.anchorMax = new Vector2(1, 1); // Top-right anchor für VLG
             itemRect.pivot = new Vector2(0.5f, 1); // Top-center pivot
-            itemRect.sizeDelta = new Vector2(0, 40); // Höhe für LayoutGroup
+            itemRect.sizeDelta = new Vector2(0, 35); // Etwas kompakter: 35px statt 40px
             
             // LayoutElement für VerticalLayoutGroup
             var layoutElement = itemGO.AddComponent<LayoutElement>();
-            layoutElement.minHeight = 40;
-            layoutElement.preferredHeight = 40;
+            layoutElement.minHeight = 35;
+            layoutElement.preferredHeight = 35;
             layoutElement.flexibleHeight = 0;
 
             // Toggle für Item
@@ -206,7 +208,7 @@ namespace Setup.Steps
             itemLabelRect.offsetMax = new Vector2(-5, -2); // Weniger rechts padding
             var itemLabel = itemLabelGO.AddComponent<TextMeshProUGUI>();
             itemLabel.text = "Option";
-            itemLabel.fontSize = 11; // Etwas kleiner für bessere Lesbarkeit
+            itemLabel.fontSize = 10; // Kleiner für kompaktere Darstellung und bessere Lesbarkeit
             itemLabel.alignment = TextAlignmentOptions.Left;
             itemLabel.color = Color.white;
             itemLabel.textWrappingMode = TextWrappingModes.NoWrap; // Kein Wrapping
@@ -235,7 +237,8 @@ namespace Setup.Steps
             GameObject sliderGO = new GameObject("Volume Slider", typeof(RectTransform));
             sliderGO.transform.SetParent(panel.transform, false);
             var rect = sliderGO.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.45f, 0.13f);
+            // Verschoben nach rechts um Überlappung zu vermeiden
+            rect.anchorMin = new Vector2(0.46f, 0.13f); // Mehr Abstand zum Dropdown
             rect.anchorMax = new Vector2(0.9f, 0.18f);
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
