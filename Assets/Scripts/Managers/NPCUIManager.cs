@@ -118,7 +118,7 @@ namespace Managers
                 conversationDisplay.text = "OpenAI Realtime NPC Chat\n\nClick 'Connect' to begin...";
             }
 
-            // Stimmen-Dropdown initialisieren
+            // Stimmen-Dropdown initialisieren und XR-kompatibel machen
             if (voiceDropdown != null)
             {
                 voiceDropdown.ClearOptions();
@@ -132,6 +132,9 @@ namespace Managers
                 voiceDropdown.value = safeVoiceIndex;
                 voiceDropdown.RefreshShownValue();
                 voiceDropdown.onValueChanged.AddListener(OnVoiceDropdownChanged);
+                
+                // Make dropdown XR/VR compatible
+                MakeDropdownXRCompatible(voiceDropdown);
             }
         }
         
@@ -158,6 +161,186 @@ namespace Managers
             Debug.LogWarning($"[UI] Invalid voice {voice} detected, using alloy instead");
             voice = OpenAIVoiceExtensions.GetDefault();
             return 0; // alloy is index 0
+        }
+        
+        /// <summary>
+        /// Make TMP_Dropdown XR/VR compatible with minimal changes
+        /// </summary>
+        private void MakeDropdownXRCompatible(TMP_Dropdown dropdown)
+        {
+            if (dropdown == null) return;
+            
+            Debug.Log("[UI] Making voice dropdown XR/VR compatible...");
+            
+            // Enhance visual feedback for better VR visibility
+            var button = dropdown.GetComponent<Button>();
+            if (button != null)
+            {
+                var colors = button.colors;
+                colors.highlightedColor = Color.yellow * 0.7f; // Better VR highlight
+                colors.selectedColor = Color.green * 0.7f; // Better VR selection
+                button.colors = colors;
+            }
+            
+            // Larger text for VR readability (but not too large)
+            if (dropdown.captionText != null)
+            {
+                dropdown.captionText.fontSize *= 1.1f; // Modest increase
+                dropdown.captionText.color = Color.white; // Better contrast
+            }
+            
+            // Ensure reasonable size for VR interaction (but don't make it too big)
+            var rectTransform = dropdown.GetComponent<RectTransform>();
+            if (rectTransform != null)
+            {
+                var currentSize = rectTransform.sizeDelta;
+                // Only increase if really too small, and cap the maximum size
+                rectTransform.sizeDelta = new Vector2(
+                    Mathf.Clamp(currentSize.x, 200f, 350f), // Reasonable width range
+                    Mathf.Clamp(currentSize.y, 30f, 50f)    // Reasonable height range
+                );
+            }
+            
+            // Set proper layer for XR raycasting
+            dropdown.gameObject.layer = LayerMask.NameToLayer("UI");
+            
+            // Try to add XR interaction (optional - graceful fallback if not available)
+            TryAddXRInteraction(dropdown.gameObject);
+            
+            // Most importantly: Fix the dropdown template to stay within canvas bounds
+            StartCoroutine(FixDropdownTemplateSize(dropdown));
+            
+            Debug.Log("[UI] Voice dropdown is now XR/VR compatible!");
+        }
+        
+        /// <summary>
+        /// Fix dropdown template to stay within canvas bounds for VR
+        /// </summary>
+        private System.Collections.IEnumerator FixDropdownTemplateSize(TMP_Dropdown dropdown)
+        {
+            // Wait a frame for dropdown to be fully initialized
+            yield return null;
+            
+            // Force dropdown to create its template if it doesn't exist
+            if (dropdown.template == null)
+            {
+                dropdown.Show();
+                yield return null;
+                dropdown.Hide();
+                yield return null;
+            }
+            
+            if (dropdown.template != null)
+            {
+                var templateRect = dropdown.template.GetComponent<RectTransform>();
+                if (templateRect != null)
+                {
+                    // Get canvas bounds
+                    var canvas = dropdown.GetComponentInParent<Canvas>();
+                    if (canvas != null)
+                    {
+                        var canvasRect = canvas.GetComponent<RectTransform>();
+                        float canvasHeight = canvasRect.rect.height;
+                        float canvasWidth = canvasRect.rect.width;
+                        
+                        // Limit template size to reasonable bounds within canvas
+                        float maxTemplateHeight = canvasHeight * 0.4f; // Max 40% of canvas height
+                        float maxTemplateWidth = canvasWidth * 0.5f;   // Max 50% of canvas width
+                        
+                        var currentSize = templateRect.sizeDelta;
+                        templateRect.sizeDelta = new Vector2(
+                            Mathf.Min(currentSize.x, maxTemplateWidth),
+                            Mathf.Min(currentSize.y, maxTemplateHeight)
+                        );
+                        
+                        Debug.Log($"[UI] Template size limited to: {templateRect.sizeDelta} (Canvas: {canvasWidth}x{canvasHeight})");
+                    }
+                    
+                    // Enhance template background for better VR visibility
+                    var templateImage = templateRect.GetComponent<Image>();
+                    if (templateImage != null)
+                    {
+                        templateImage.color = new Color(0.1f, 0.1f, 0.1f, 0.95f); // Dark, opaque background
+                    }
+                    
+                    // Make sure template items are reasonable size for VR
+                    FixDropdownItemSizes(dropdown.template);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Fix dropdown item sizes for VR without making them too big
+        /// </summary>
+        private void FixDropdownItemSizes(RectTransform template)
+        {
+            var viewport = template.Find("Viewport");
+            var content = viewport?.Find("Content");
+            var itemTemplate = content?.Find("Item");
+            
+            if (itemTemplate != null)
+            {
+                var itemRect = itemTemplate.GetComponent<RectTransform>();
+                if (itemRect != null)
+                {
+                    // Ensure items are big enough for VR but not too big
+                    var currentItemSize = itemRect.sizeDelta;
+                    itemRect.sizeDelta = new Vector2(
+                        currentItemSize.x, 
+                        Mathf.Clamp(currentItemSize.y, 35f, 45f) // Reasonable height for VR
+                    );
+                }
+                
+                // Enhance item text readability
+                var itemLabel = itemTemplate.Find("Item Label")?.GetComponent<TMP_Text>();
+                if (itemLabel != null)
+                {
+                    itemLabel.fontSize = Mathf.Clamp(itemLabel.fontSize * 1.05f, 12f, 16f); // Modest increase
+                    itemLabel.color = Color.white;
+                }
+                
+                // Better item background
+                var itemBackground = itemTemplate.Find("Item Background")?.GetComponent<Image>();
+                if (itemBackground != null)
+                {
+                    itemBackground.color = new Color(0.2f, 0.2f, 0.2f, 0.8f);
+                }
+                
+                // Add XR interaction to items too
+                TryAddXRInteraction(itemTemplate.gameObject);
+            }
+        }
+        
+        /// <summary>
+        /// Try to add XR interaction components - works with or without XR toolkit
+        /// </summary>
+        private void TryAddXRInteraction(GameObject obj)
+        {
+            try
+            {
+                // Try to find and add XR interaction component dynamically
+                var xrType = System.Type.GetType("UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable, Unity.XR.Interaction.Toolkit");
+                if (xrType == null)
+                {
+                    // Fallback to older namespace
+                    xrType = System.Type.GetType("UnityEngine.XR.Interaction.Toolkit.XRSimpleInteractable, Unity.XR.Interaction.Toolkit");
+                }
+                
+                if (xrType != null && obj.GetComponent(xrType) == null)
+                {
+                    obj.AddComponent(xrType);
+                    Debug.Log("[UI] XR interaction added successfully");
+                }
+                else
+                {
+                    Debug.Log("[UI] XR components not available - dropdown will work with mouse/touch");
+                }
+            }
+            catch (System.Exception)
+            {
+                // XR not available - that's perfectly fine
+                Debug.Log("[UI] XR Interaction Toolkit not found - dropdown works with traditional input");
+            }
         }
 
         private void SetupEventListeners()

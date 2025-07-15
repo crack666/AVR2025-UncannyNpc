@@ -35,8 +35,9 @@ Create **intelligent NPCs** that can have **natural voice conversations** in Uni
 - **Server-side VAD** - Intelligent turn-taking via OpenAI API
 - **Robust stream end detection** - Generous silence timeout prevents audio cutoff
 - **8 Professional voices** - Choose personality: Alloy, Ash, Ballad, Coral, Echo, Sage, Shimmer, Verse
-- **User-friendly voice selection** - Dropdown with descriptions: "Alloy (neutral): Balanced, warm voice"
-- **Runtime voice switching** - Change voices seamlessly during gameplay
+- **XR/VR optimized voice selection** - Quest 3 compatible UI with clear visual feedback
+- **Legacy dropdown support** - Maintains compatibility with existing TMP_Dropdown setups
+- **Runtime voice switching** - Change voices seamlessly during gameplay with session restart
 - **User-configurable audio** - Buffer size, silence timeout, thresholds
 - **Robust error handling** - Production-ready reliability
 
