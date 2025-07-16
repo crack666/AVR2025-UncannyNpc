@@ -35,18 +35,22 @@ namespace Setup.Steps
                 log("✅ Removed existing NPC UI Panel.");
             }
 
-            // --- Create Panel ---
+            // --- Create Panel (following MainDemo 15.unity structure) ---
             Panel = new GameObject("NPC UI Panel");
             Panel.transform.SetParent(canvas.transform, false);
+            Panel.layer = LayerMask.NameToLayer("UI");
             var panelRect = Panel.AddComponent<RectTransform>();
+            
+            // MainDemo 15.unity Panel positioning: anchored to bottom center
             panelRect.anchorMin = new Vector2(0.5f, 0f);
             panelRect.anchorMax = new Vector2(0.5f, 0f);
             panelRect.pivot = new Vector2(0.5f, 0f);
-            panelRect.sizeDelta = panelSize;
-            panelRect.anchoredPosition = panelPosition;
+            panelRect.sizeDelta = panelSize; // 600x350 like MainDemo 15.unity
+            panelRect.anchoredPosition = panelPosition; // (0, 0) for bottom center
+            
             var panelImage = Panel.AddComponent<Image>();
             panelImage.color = new Color(0.1f, 0.1f, 0.1f, 0.8f);
-            log("✅ UI Panel created and configured.");
+            log("✅ UI Panel created with MainDemo 15.unity structure.");
 
             // --- Add NpcUiManager ---
             var uiManagerType = System.Type.GetType("Managers.NpcUiManager") ?? System.Type.GetType("NpcUiManager");

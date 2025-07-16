@@ -41,13 +41,13 @@ namespace Setup.Steps
 
         private void CreateVoiceCheckboxes()
         {
-            // Voice Selection Group Container
+            // Voice Selection Group Container (following MainDemo 15.unity anchor structure)
             GameObject voiceGroupGO = new GameObject("Voice Selection Group", typeof(RectTransform));
             voiceGroupGO.transform.SetParent(panel.transform, false);
             var groupRect = voiceGroupGO.GetComponent<RectTransform>();
-            // Gleiche Position wie das alte Dropdown, aber etwas größer für alle Checkboxes
-            groupRect.anchorMin = new Vector2(0.1f, 0.05f);
-            groupRect.anchorMax = new Vector2(0.42f, 0.18f);
+            // Position like MainDemo 15.unity: left side with anchors
+            groupRect.anchorMin = new Vector2(0.05f, 0.05f);
+            groupRect.anchorMax = new Vector2(0.48f, 0.4f); // Increased height for better spacing
             groupRect.offsetMin = Vector2.zero;
             groupRect.offsetMax = Vector2.zero;
 
@@ -55,21 +55,30 @@ namespace Setup.Steps
             var titleGO = new GameObject("Voice Title", typeof(RectTransform));
             titleGO.transform.SetParent(voiceGroupGO.transform, false);
             var titleRect = titleGO.GetComponent<RectTransform>();
-            titleRect.anchorMin = new Vector2(0f, 0.85f);
+            titleRect.anchorMin = new Vector2(0f, 0.88f);
             titleRect.anchorMax = new Vector2(1f, 1f);
             titleRect.offsetMin = Vector2.zero;
             titleRect.offsetMax = Vector2.zero;
             var titleLabel = titleGO.AddComponent<TextMeshProUGUI>();
-            titleLabel.text = "Voice:";
-            titleLabel.fontSize = 10;
+            titleLabel.text = "Voice Selection:";
+            titleLabel.fontSize = 7; // Verkleinerte Schrift
             titleLabel.fontStyle = FontStyles.Bold;
             titleLabel.alignment = TextAlignmentOptions.Left;
             titleLabel.color = Color.white;
 
-            // Get voice options
-            var voiceDescriptions = OpenAIVoiceExtensions.GetAllVoiceDescriptions();
-            var voiceCount = voiceDescriptions.Length;
-            float checkboxHeight = 0.8f / voiceCount; // Verteilung über verfügbare Höhe
+            // Get voice options with better descriptions
+            var voiceCount = OpenAIVoiceExtensions.GetVoiceCount();
+            var voiceDescriptions = new string[voiceCount];
+            
+            // Use the existing GetDescription method for better descriptions
+            for (int i = 0; i < voiceCount; i++)
+            {
+                var voice = OpenAIVoiceExtensions.FromIndex(i);
+                voiceDescriptions[i] = voice.GetDescription();
+            }
+            
+            float availableHeight = 0.85f; // Reduzierte Höhe für Title
+            float checkboxHeight = availableHeight / voiceCount; // Gleichmäßige Verteilung
 
             // Create ToggleGroup for exclusive selection
             var toggleGroup = voiceGroupGO.AddComponent<ToggleGroup>();
@@ -84,12 +93,12 @@ namespace Setup.Steps
                 var checkboxRect = checkboxGO.GetComponent<RectTransform>();
                 
                 // Position vertically based on index (stack from top to bottom)
-                float startY = 0.8f - (i * checkboxHeight);
+                float startY = availableHeight - (i * checkboxHeight);
                 float endY = startY - checkboxHeight;
                 checkboxRect.anchorMin = new Vector2(0f, endY);
                 checkboxRect.anchorMax = new Vector2(1f, startY);
-                checkboxRect.offsetMin = new Vector2(2, 1); // Small padding
-                checkboxRect.offsetMax = new Vector2(-2, -1);
+                checkboxRect.offsetMin = new Vector2(2, 2); // Mehr Padding für bessere Abstände
+                checkboxRect.offsetMax = new Vector2(-2, -2);
 
                 // Background
                 var bgGO = new GameObject("Background", typeof(RectTransform));
@@ -123,7 +132,7 @@ namespace Setup.Steps
                 labelRect.offsetMax = Vector2.zero;
                 var label = labelGO.AddComponent<TextMeshProUGUI>();
                 label.text = voiceDescriptions[i];
-                label.fontSize = 8; // Kleine Schrift für kompakte Darstellung
+                label.fontSize = 6; // Kleinere Schrift für kompakte Darstellung
                 label.fontStyle = FontStyles.Normal;
                 label.alignment = TextAlignmentOptions.MidlineLeft;
                 label.color = Color.white;
@@ -179,10 +188,11 @@ namespace Setup.Steps
             selectAvatarGO.layer = LayerMask.NameToLayer("UI");
             
             var selectAvatarRect = selectAvatarGO.GetComponent<RectTransform>();
-            selectAvatarRect.anchorMin = new Vector2(0.5f, 0.5f);
-            selectAvatarRect.anchorMax = new Vector2(0.5f, 0.5f);
-            selectAvatarRect.sizeDelta = new Vector2(400f, 120f);
-            selectAvatarRect.anchoredPosition = new Vector2(-61.3f, 180f); // Above voice checkboxes, matching original X offset
+            // Position like MainDemo 15.unity: right side with proper anchors
+            selectAvatarRect.anchorMin = new Vector2(0.52f, 0.6f);
+            selectAvatarRect.anchorMax = new Vector2(0.95f, 0.95f);
+            selectAvatarRect.offsetMin = Vector2.zero;
+            selectAvatarRect.offsetMax = Vector2.zero;
             
             // Create Buttons container
             GameObject buttonsGO = new GameObject("Buttons", typeof(RectTransform));
@@ -190,10 +200,10 @@ namespace Setup.Steps
             buttonsGO.layer = LayerMask.NameToLayer("UI");
             
             var buttonsRect = buttonsGO.GetComponent<RectTransform>();
-            buttonsRect.anchorMin = new Vector2(0.5f, 0.5f);
-            buttonsRect.anchorMax = new Vector2(0.5f, 0.5f);
-            buttonsRect.sizeDelta = new Vector2(300f, 50f);
-            buttonsRect.anchoredPosition = new Vector2(0.02255409f, 1.149995f); // Original positioning
+            buttonsRect.anchorMin = new Vector2(0f, 0f);
+            buttonsRect.anchorMax = new Vector2(1f, 0.4f);
+            buttonsRect.offsetMin = Vector2.zero;
+            buttonsRect.offsetMax = Vector2.zero;
             
             // Create Images container
             GameObject imagesGO = new GameObject("Images", typeof(RectTransform));
@@ -201,10 +211,10 @@ namespace Setup.Steps
             imagesGO.layer = LayerMask.NameToLayer("UI");
             
             var imagesRect = imagesGO.GetComponent<RectTransform>();
-            imagesRect.anchorMin = new Vector2(0.5f, 0.5f);
-            imagesRect.anchorMax = new Vector2(0.5f, 0.5f);
-            imagesRect.sizeDelta = new Vector2(18.87f, 18.87f);
-            imagesRect.anchoredPosition = new Vector2(-55.1f, 12.9f); // Original positioning
+            imagesRect.anchorMin = new Vector2(0f, 0.6f);
+            imagesRect.anchorMax = new Vector2(1f, 1f);
+            imagesRect.offsetMin = Vector2.zero;
+            imagesRect.offsetMax = Vector2.zero;
             
             // Create Description Text
             GameObject descriptionGO = new GameObject("Description_Text (TMP)", typeof(RectTransform));
@@ -212,15 +222,15 @@ namespace Setup.Steps
             descriptionGO.layer = LayerMask.NameToLayer("UI");
             
             var descriptionRect = descriptionGO.GetComponent<RectTransform>();
-            descriptionRect.anchorMin = new Vector2(0.5f, 0.5f);
-            descriptionRect.anchorMax = new Vector2(0.5f, 0.5f);
-            descriptionRect.sizeDelta = new Vector2(200f, 50f);
-            descriptionRect.anchoredPosition = new Vector2(-64.97759f, 22.150005f); // Original positioning
+            descriptionRect.anchorMin = new Vector2(0f, 0.4f);
+            descriptionRect.anchorMax = new Vector2(1f, 0.6f);
+            descriptionRect.offsetMin = Vector2.zero;
+            descriptionRect.offsetMax = Vector2.zero;
             
             // Add TextMeshProUGUI component
             var descriptionText = descriptionGO.AddComponent<TMPro.TextMeshProUGUI>();
             descriptionText.text = "Select Avatar";
-            descriptionText.fontSize = 14f;
+            descriptionText.fontSize = 8f; // Verkleinert für kompaktes Design
             descriptionText.alignment = TMPro.TextAlignmentOptions.Center;
             descriptionText.color = Color.white;
             descriptionText.material = null;
@@ -233,14 +243,14 @@ namespace Setup.Steps
             string[] avatarGameObjectNames = { "Robert", "Leonard", "682cd77aff222706b8291007" }; // Avatar GameObject names
             
             Vector2[] buttonPositions = { 
-                new Vector2(-119.600006f, -20.899984f),  // Robert Button
-                new Vector2(1f, -20.9f),                 // Leonard Button
-                new Vector2(-59f, -20.9f)                // RPM Button
+                new Vector2(-65f, -20.9f),   // Robert Button
+                new Vector2(0f, -20.9f),     // Leonard Button
+                new Vector2(65f, -20.9f)     // RPM Button
             };
             Vector2[] imagePositions = { 
-                new Vector2(-64.9f, 0f),    // Robert_Raw_Image
+                new Vector2(-32.5f, 0f),    // Robert_Raw_Image
                 new Vector2(0f, 0f),        // Leonard_Raw_Image
-                new Vector2(-32.45f, 0f)    // RPM_Raw_Image
+                new Vector2(32.5f, 0f)      // RPM_Raw_Image
             };
             
             for (int i = 0; i < avatarNames.Length; i++)

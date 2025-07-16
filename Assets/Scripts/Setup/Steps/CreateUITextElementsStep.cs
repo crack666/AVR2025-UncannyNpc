@@ -24,8 +24,9 @@ namespace Setup.Steps
         {
             log("📄 Step 2.4: UI Text Element Creation");
 
-            StatusDisplay = CreateTextMeshPro("Status Display", "Status: Disconnected", 0.45f, 0.5f, 14);
-            ConversationDisplay = CreateTextMeshPro("Conversation Display", "OpenAI Realtime NPC Chat...", 0.15f, 0.4f, 12);
+            // MainDemo 15.unity positioning structure
+            StatusDisplay = CreateTextMeshPro("Status Display", "Status: Disconnected", 0.45f, 0.5f, 10);
+            ConversationDisplay = CreateTextMeshPro("Conversation Display", "OpenAI Realtime NPC Chat...", 0.15f, 0.4f, 10);
 
             log("✅ All UI text elements created.");
         }
@@ -44,12 +45,13 @@ namespace Setup.Steps
             textComponent.raycastTarget = false; // Important for not blocking clicks
 
             RectTransform rectTransform = textObj.GetComponent<RectTransform>();
+            // MainDemo 15.unity exact positioning structure
             rectTransform.anchorMin = new Vector2(0.1f, yMin);
             rectTransform.anchorMax = new Vector2(0.9f, yMax);
             rectTransform.offsetMin = Vector2.zero;
             rectTransform.offsetMax = Vector2.zero;
 
-            log($"✅ Created text element: {name}");
+            log($"✅ Created text element: {name} (MainDemo 15.unity structure)");
             return textComponent;
         }
     }

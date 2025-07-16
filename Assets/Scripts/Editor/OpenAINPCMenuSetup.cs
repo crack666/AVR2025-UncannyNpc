@@ -575,7 +575,7 @@ public class OpenAINPCMenuSetup : EditorWindow
         Debug.Log("[OpenAI NPC Setup] UnityMainThreadDispatcher initialized successfully.");
         
         var openAISettings = Resources.Load<ScriptableObject>("OpenAISettings");
-        var uiPanelSize = new Vector2(1200, 500);
+        var uiPanelSize = new Vector2(600, 350); // Matching MainDemo 15.unity
         var uiPanelPosition = new Vector2(0, 0);
         bool allValid = false;
 
@@ -594,7 +594,11 @@ public class OpenAINPCMenuSetup : EditorWindow
                 canvasMode = "WorldSpace", // Always WorldSpace for XR
                 camera = selectedCamera,
                 worldCanvasScale = worldCanvasScale,
-                lipSyncStatus = lipSyncStatus.ToString()
+                lipSyncStatus = lipSyncStatus.ToString(),
+                canvasSize = new Vector2(1920, 1080), // MainDemo 15.unity canvas size
+                canvasPosition = new Vector3(0, 5.95f, 3), // MainDemo 15.unity canvas position
+                canvasRotation = Vector3.zero,
+                canvasScale = new Vector3(0.01f, 0.01f, 0.01f) // MainDemo 15.unity canvas scale
             }
         );
 
