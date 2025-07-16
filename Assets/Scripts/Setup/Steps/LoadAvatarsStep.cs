@@ -32,8 +32,8 @@ namespace Setup.Steps
             },
             new AvatarConfig {
                 name = "682cd77aff222706b8291007",
-                assetPath = "Assets/Ready Player Me/Avatars/682cd77aff222706b8291007",
-                fileExtension = ".glb",
+                assetPath = "Assets/Ready Player Me/Avatars/682cd77aff222706b8291007/2fac66e374c947c41bc74325c6e3d934/682cd77aff222706b8291007",
+                fileExtension = ".prefab",
                 avatarType = AvatarType.ReadyPlayerMe,
                 index = 2
             }
