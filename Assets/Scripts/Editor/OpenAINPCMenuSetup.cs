@@ -469,6 +469,9 @@ public class OpenAINPCMenuSetup : EditorWindow
             Undo.RegisterCreatedObjectUndo(avatarInstance, "Create Avatar from Picker");
             Debug.Log($"[OpenAI NPC Setup] Avatar Prefab instantiated: {avatarInstance.name}");
 
+            // Animation Controller hinzufügen
+            AddAnimationControllerToAvatar(avatarInstance);
+
             // OpenAISettings API Key setzen falls angegeben
             if (!string.IsNullOrEmpty(openAIApiKey) && openAIApiKey != "[EXISTING KEY FOUND]" && openAISettingsAsset != null)
             {
@@ -777,5 +780,51 @@ public class OpenAINPCMenuSetup : EditorWindow
             $"✅ AudioDiagnostics component added to: {targetObject.name}\n\n" +
             "You can now use 'Audio Diagnostics' menu item to run diagnostics.", 
             "OK");
+    }
+
+    private static void AddAnimationControllerToAvatar(GameObject avatar)
+    {
+        // Check if avatar already has an Animator component
+        Animator animator = avatar.GetComponent<Animator>();
+        if (animator == null)
+        {
+            animator = avatar.AddComponent<Animator>();
+            Debug.Log($"[OpenAI NPC Setup] Added Animator component to {avatar.name}");
+        }
+
+        // Load RPM Animation Controller
+        RuntimeAnimatorController controller = LoadRPMAnimationController();
+
+        if (controller != null)
+        {
+            animator.runtimeAnimatorController = controller;
+            Debug.Log($"[OpenAI NPC Setup] Added Animation Controller to {avatar.name}: {controller.name}");
+        }
+        else
+        {
+            Debug.LogWarning($"[OpenAI NPC Setup] No Animation Controller found for {avatar.name}");
+        }
+    }
+
+    private static RuntimeAnimatorController LoadRPMAnimationController()
+    {
+        string[] possiblePaths = {
+            "Assets/Ready Player Me/Core/Samples/AvatarCreatorSamples/AvatarCreatorElements/Animation/AnimationController.controller",
+            "Assets/Ready Player Me/Core/Samples/QuickStart/Animations/RpmPlayer.controller",
+            "Assets/Plugins/ReadyPlayerMe/Resources/Animations/RpmPlayer.controller"
+        };
+
+        foreach (string path in possiblePaths)
+        {
+            RuntimeAnimatorController controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(path);
+            if (controller != null)
+            {
+                Debug.Log($"[OpenAI NPC Setup] Found Animation Controller: {path}");
+                return controller;
+            }
+        }
+
+        Debug.LogWarning("[OpenAI NPC Setup] No RPM Animation Controller found in project");
+        return null;
     }
 }
