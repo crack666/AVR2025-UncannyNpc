@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
+using Setup;
 
 namespace Setup.Steps
 {
@@ -295,44 +296,8 @@ namespace Setup.Steps
                     OnAvatarButtonClicked(avatarIndex, avatarNames[avatarIndex], avatarGameObjectNames, descriptionText);
                 });
                 
-                // Method 2: Try to add persistent calls programmatically (visible in Inspector)
-                #if UNITY_EDITOR
-                try 
-                {
-                    // Create persistent calls like in the original scene
-                    var serializedObject = new UnityEditor.SerializedObject(button);
-                    var onClickProperty = serializedObject.FindProperty("m_OnClick.m_PersistentCalls.m_Calls");
-                    
-                    // Clear existing calls
-                    onClickProperty.arraySize = 0;
-                    
-                    // Add calls for each avatar (activate one, deactivate others)
-                    for (int j = 0; j < avatarGameObjectNames.Length; j++)
-                    {
-                        onClickProperty.arraySize++;
-                        var callProperty = onClickProperty.GetArrayElementAtIndex(j);
-                        
-                        // Find the target GameObject
-                        GameObject targetObj = GameObject.Find(avatarGameObjectNames[j]);
-                        if (targetObj != null)
-                        {
-                            callProperty.FindPropertyRelative("m_Target").objectReferenceValue = targetObj;
-                            callProperty.FindPropertyRelative("m_TargetAssemblyTypeName").stringValue = "UnityEngine.GameObject, UnityEngine";
-                            callProperty.FindPropertyRelative("m_MethodName").stringValue = "SetActive";
-                            callProperty.FindPropertyRelative("m_Mode").intValue = 6; // Bool mode
-                            callProperty.FindPropertyRelative("m_Arguments.m_BoolArgument").boolValue = (j == avatarIndex);
-                            callProperty.FindPropertyRelative("m_CallState").intValue = 2; // RuntimeOnly
-                        }
-                    }
-                    
-                    serializedObject.ApplyModifiedProperties();
-                    UnityEngine.Debug.Log($"[UI] Added persistent calls to button: {avatarNames[i]}");
-                }
-                catch (System.Exception ex)
-                {
-                    UnityEngine.Debug.LogWarning($"[UI] Could not add persistent calls: {ex.Message}");
-                }
-                #endif
+                // Method 2: Setup persistent calls using AvatarManager
+                SetupPersistentCallsWhenReady(button, avatarIndex, avatarNames[i], avatarGameObjectNames);
                 
                 UnityEngine.Debug.Log($"[UI] Added OnClick event to button: {avatarNames[i]}");
                 
@@ -437,6 +402,66 @@ namespace Setup.Steps
             log("✅ Created Select Avatar UI with proper button and image configuration.");
         }
         
+        private void SetupPersistentCallsWhenReady(UnityEngine.UI.Button button, int avatarIndex, string avatarName, string[] avatarGameObjectNames)
+        {
+            if (AvatarManager.Instance.AreAvatarsLoaded())
+            {
+                // Avatars already loaded, setup immediately
+                CreatePersistentCalls(button, avatarIndex, avatarName, avatarGameObjectNames);
+            }
+            else
+            {
+                // Wait for avatars to be loaded
+                AvatarManager.Instance.OnAvatarsLoaded += (avatars) => {
+                    CreatePersistentCalls(button, avatarIndex, avatarName, avatarGameObjectNames);
+                };
+            }
+        }
+
+        private void CreatePersistentCalls(UnityEngine.UI.Button button, int avatarIndex, string avatarName, string[] avatarGameObjectNames)
+        {
+            #if UNITY_EDITOR
+            try 
+            {
+                var serializedObject = new UnityEditor.SerializedObject(button);
+                var onClickProperty = serializedObject.FindProperty("m_OnClick.m_PersistentCalls.m_Calls");
+                
+                onClickProperty.arraySize = 0;
+                
+                for (int j = 0; j < avatarGameObjectNames.Length; j++)
+                {
+                    // Use AvatarManager to get avatar reference
+                    GameObject targetObj = AvatarManager.Instance.GetAvatar(avatarGameObjectNames[j]);
+                    if (targetObj != null)
+                    {
+                        onClickProperty.arraySize++;
+                        var callProperty = onClickProperty.GetArrayElementAtIndex(onClickProperty.arraySize - 1);
+                        
+                        callProperty.FindPropertyRelative("m_Target").objectReferenceValue = targetObj;
+                        callProperty.FindPropertyRelative("m_TargetAssemblyTypeName").stringValue = "UnityEngine.GameObject, UnityEngine";
+                        callProperty.FindPropertyRelative("m_MethodName").stringValue = "SetActive";
+                        callProperty.FindPropertyRelative("m_Mode").intValue = 6; // Bool mode
+                        callProperty.FindPropertyRelative("m_Arguments.m_BoolArgument").boolValue = (j == avatarIndex);
+                        callProperty.FindPropertyRelative("m_CallState").intValue = 2; // RuntimeOnly
+                        
+                        UnityEngine.Debug.Log($"[UI] Added persistent call for {avatarName} -> {avatarGameObjectNames[j]} (SetActive: {j == avatarIndex})");
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.LogError($"[UI] Avatar GameObject not found: {avatarGameObjectNames[j]}");
+                    }
+                }
+                
+                serializedObject.ApplyModifiedProperties();
+                UnityEngine.Debug.Log($"[UI] Successfully created {onClickProperty.arraySize} persistent calls for button: {avatarName}");
+            }
+            catch (System.Exception ex)
+            {
+                UnityEngine.Debug.LogError($"[UI] Failed to create persistent calls for {avatarName}: {ex.Message}");
+            }
+            #endif
+        }
+        
         private void OnAvatarButtonClicked(int avatarIndex, string avatarName, string[] avatarGameObjectNames, TMPro.TextMeshProUGUI descriptionText)
         {
             UnityEngine.Debug.Log($"[Avatar] Button clicked: {avatarName} (Index: {avatarIndex})");
@@ -447,26 +472,11 @@ namespace Setup.Steps
                 descriptionText.text = $"{avatarName.Replace(" Button", "")} Selected";
             }
             
-            // Find and activate/deactivate avatar GameObjects
-            string selectedAvatarName = avatarGameObjectNames[avatarIndex];
-            
-            // Search for avatar GameObjects in the scene
-            GameObject[] allGameObjects = UnityEngine.Object.FindObjectsOfType<GameObject>();
-            
+            // Use AvatarManager to get avatar references
             for (int i = 0; i < avatarGameObjectNames.Length; i++)
             {
                 string avatarObjName = avatarGameObjectNames[i];
-                
-                // Find the avatar GameObject
-                GameObject avatarObj = null;
-                foreach (GameObject go in allGameObjects)
-                {
-                    if (go.name == avatarObjName)
-                    {
-                        avatarObj = go;
-                        break;
-                    }
-                }
+                GameObject avatarObj = AvatarManager.Instance.GetAvatar(avatarObjName);
                 
                 if (avatarObj != null)
                 {

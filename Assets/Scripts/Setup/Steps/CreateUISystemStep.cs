@@ -43,6 +43,10 @@ namespace Setup.Steps
             var inputFieldsStep = new CreateUIInputFieldsStep(log, panel);
             inputFieldsStep.Execute();
 
+            // 3.5. Load Avatars BEFORE creating UI controls with persistent calls
+            var loadAvatarsStep = new LoadAvatarsStep(log, 0); // Default: Robert (index 0)
+            loadAvatarsStep.Execute();
+
             var controlsStep = new CreateUIControlsStep(log, panel);
             controlsStep.Execute();
 
