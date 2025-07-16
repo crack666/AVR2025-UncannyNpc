@@ -97,6 +97,9 @@ namespace Setup.Steps
                 GameObject avatarInstance = UnityEngine.Object.Instantiate(avatarPrefab);
                 avatarInstance.name = config.name;
                 
+                // Add Animation Controller
+                AddAnimationController(avatarInstance, config);
+                
                 // Initially deactivate (will be activated by visibility logic)
                 avatarInstance.SetActive(false);
                 
@@ -143,6 +146,58 @@ namespace Setup.Steps
                 $"{config.assetPath}/{config.name.ToLower()}{config.fileExtension}",
                 $"{config.assetPath}/avatar{config.fileExtension}",
                 $"{config.assetPath}/Avatar{config.fileExtension}"
+            };
+        }
+        
+        private void AddAnimationController(GameObject avatar, AvatarConfig config)
+        {
+            // Check if avatar already has an Animator component
+            Animator animator = avatar.GetComponent<Animator>();
+            if (animator == null)
+            {
+                animator = avatar.AddComponent<Animator>();
+                log($"✅ Added Animator component to {config.name}");
+            }
+            
+            // Load appropriate animation controller based on avatar type
+            RuntimeAnimatorController controller = LoadAnimationController(config.avatarType);
+            
+            if (controller != null)
+            {
+                animator.runtimeAnimatorController = controller;
+                log($"✅ Added Animation Controller to {config.name}: {controller.name}");
+            }
+            else
+            {
+                log($"⚠️ No Animation Controller found for {config.name} (type: {config.avatarType})");
+            }
+        }
+        
+        private RuntimeAnimatorController LoadAnimationController(AvatarType avatarType)
+        {
+            string[] possiblePaths = GetAnimationControllerPaths(avatarType);
+            
+            foreach (string path in possiblePaths)
+            {
+                RuntimeAnimatorController controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(path);
+                if (controller != null)
+                {
+                    log($"🎯 Found Animation Controller: {path}");
+                    return controller;
+                }
+            }
+            
+            log($"⚠️ No Animation Controller found for type: {avatarType}");
+            return null;
+        }
+        
+        private string[] GetAnimationControllerPaths(AvatarType avatarType)
+        {
+            // Use RPM Animation Controller for all avatar types
+            return new string[] {
+                "Assets/Ready Player Me/Core/Samples/AvatarCreatorSamples/AvatarCreatorElements/Animation/AnimationController.controller",
+                "Assets/Ready Player Me/Core/Samples/QuickStart/Animations/RpmPlayer.controller",
+                "Assets/Plugins/ReadyPlayerMe/Resources/Animations/RpmPlayer.controller"
             };
         }
         #endif
