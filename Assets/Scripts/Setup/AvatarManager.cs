@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Setup
 {
@@ -105,6 +106,69 @@ namespace Setup
             var names = new string[loadedAvatars.Count];
             loadedAvatars.Keys.CopyTo(names, 0);
             return names;
+        }
+        
+        /// <summary>
+        /// Get all registered avatars as a dictionary
+        /// </summary>
+        public Dictionary<string, GameObject> GetAllAvatars()
+        {
+            return new Dictionary<string, GameObject>(loadedAvatars);
+        }
+        
+        /// <summary>
+        /// Get all ReadyPlayerMe avatars (RPM_Male, RPM_Female, CustomAvatar)
+        /// </summary>
+        public Dictionary<string, GameObject> GetReadyPlayerMeAvatars()
+        {
+            var rpmAvatars = new Dictionary<string, GameObject>();
+            
+            foreach (var kvp in loadedAvatars)
+            {
+                string avatarName = kvp.Key;
+                GameObject avatar = kvp.Value;
+                
+                // Check if this is a ReadyPlayerMe avatar
+                if (IsReadyPlayerMeAvatar(avatarName, avatar))
+                {
+                    rpmAvatars[avatarName] = avatar;
+                }
+            }
+            
+            return rpmAvatars;
+        }
+        
+        /// <summary>
+        /// Check if an avatar is a ReadyPlayerMe avatar
+        /// </summary>
+        private bool IsReadyPlayerMeAvatar(string avatarName, GameObject avatar)
+        {
+            // RPM avatars by name
+            if (avatarName == "RPM_Male" || avatarName == "RPM_Female" || avatarName == "CustomAvatar")
+            {
+                return true;
+            }
+            
+            // Check if avatar has ReadyPlayerMe components or naming patterns
+            if (avatar != null)
+            {
+                // Check for ReadyPlayerMe-specific components or patterns
+                if (avatar.name.Contains("ReadyPlayerMe") || 
+                    avatar.name.Contains("RPM_") ||
+                    avatar.GetComponentInChildren<SkinnedMeshRenderer>()?.name.Contains("Wolf3D") == true)
+                {
+                    return true;
+                }
+                
+                // Check for blendshapes typical of ReadyPlayerMe avatars
+                var skinnedMeshRenderer = avatar.GetComponentInChildren<SkinnedMeshRenderer>();
+                if (skinnedMeshRenderer?.sharedMesh != null && skinnedMeshRenderer.sharedMesh.blendShapeCount > 10)
+                {
+                    return true;
+                }
+            }
+            
+            return false;
         }
     }
 }

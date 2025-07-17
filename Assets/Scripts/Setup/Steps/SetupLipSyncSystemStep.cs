@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using System.Linq;
 
 namespace Setup.Steps
 {
@@ -21,28 +22,82 @@ namespace Setup.Steps
         {
             log("👄 Step 5: Advanced LipSync System Setup");
 
-            if (targetAvatar == null)
-            {
-                log("❌ Cannot setup LipSync - no avatar found.");
-                return;
-            }
-
             // 1. Detect available system
             var detectionStep = new DetectLipSyncSystemStep(log);
             detectionStep.Execute();
             var systemInfo = detectionStep.SystemInfo;
 
-            // 2. Run the appropriate setup
+            // 2. Get all ReadyPlayerMe avatars for LipSync setup
+            var rpmAvatars = AvatarManager.Instance.GetReadyPlayerMeAvatars();
+            log($"🎭 Found {rpmAvatars.Count} ReadyPlayerMe avatars for LipSync setup");
+
+            if (rpmAvatars.Count == 0)
+            {
+                log("⚠️ No ReadyPlayerMe avatars found. Using fallback for targetAvatar if available.");
+                // Fallback to single avatar setup if no RPM avatars found
+                if (targetAvatar != null)
+                {
+                    SetupLipSyncForSingleAvatar(targetAvatar, npcSystem, systemInfo);
+                }
+                else
+                {
+                    log("❌ No target avatar provided and no RPM avatars found.");
+                }
+            }
+            else
+            {
+                // 3. Setup LipSync for all ReadyPlayerMe avatars
+                foreach (var avatarKvp in rpmAvatars)
+                {
+                    string avatarName = avatarKvp.Key;
+                    GameObject avatar = avatarKvp.Value;
+                    
+                    if (avatar != null)
+                    {
+                        log($"🎯 Setting up LipSync for RPM avatar: {avatarName}");
+                        SetupLipSyncForSingleAvatar(avatar, npcSystem, systemInfo);
+                    }
+                    else
+                    {
+                        log($"⚠️ Avatar '{avatarName}' is null, skipping LipSync setup");
+                    }
+                }
+            }
+
+            // 4. Add NPCController (This could also be its own step)
+            SetupNPCControllerSync(npcSystem);
+
+            // 5. Validate the final setup using the primary target avatar or first RPM avatar
+            GameObject validationAvatar = targetAvatar ?? rpmAvatars.Values.FirstOrDefault();
+            if (validationAvatar != null)
+            {
+                var validationStep = new ValidateLipSyncSetupStep(log);
+                validationStep.Execute(validationAvatar, npcSystem, systemInfo);
+            }
+        }
+        
+        /// <summary>
+        /// Setup LipSync for a single avatar - reusable method to avoid code duplication
+        /// </summary>
+        private void SetupLipSyncForSingleAvatar(GameObject avatar, GameObject npcSystem, LipSyncSystemInfo systemInfo)
+        {
+            if (avatar == null)
+            {
+                log("❌ Cannot setup LipSync - avatar is null");
+                return;
+            }
+
+            // Run the appropriate setup based on available system
             if (systemInfo.HasULipSync)
             {
-                log($"[DEBUG REMOVE LATER] Calling SetupULipSyncStep: targetAvatar={(targetAvatar != null ? targetAvatar.name : "null")}, npcSystem={(npcSystem != null ? npcSystem.name : "null")}");
+                log($"[DEBUG REMOVE LATER] Calling SetupULipSyncStep for: {avatar.name}");
                 var uLipSyncSetup = new SetupULipSyncStep(log);
-                uLipSyncSetup.ExecuteSync(targetAvatar, npcSystem);
+                uLipSyncSetup.ExecuteSync(avatar, npcSystem);
             }
             else
             {
                 var fallbackSetup = new SetupFallbackLipSyncStep(log);
-                fallbackSetup.ExecuteSync(targetAvatar, npcSystem);
+                fallbackSetup.ExecuteSync(avatar, npcSystem);
 
                 if (systemInfo.CanInstallULipSync)
                 {
@@ -50,13 +105,6 @@ namespace Setup.Steps
                     log("   → git+https://github.com/hecomi/uLipSync.git#upm");
                 }
             }
-
-            // 3. Add NPCController (This could also be its own step)
-            SetupNPCControllerSync(npcSystem);
-
-            // 4. Validate the final setup
-            var validationStep = new ValidateLipSyncSetupStep(log);
-            validationStep.Execute(targetAvatar, npcSystem, systemInfo);
         }
 
         // [Optional] Keep for compatibility, but mark as obsolete
