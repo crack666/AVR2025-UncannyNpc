@@ -41,13 +41,13 @@ namespace Setup.Steps
 
         private void CreateVoiceCheckboxes()
         {
-            // Voice Selection Group Container (following MainDemo 15.unity anchor structure)
+            // Voice Selection Group Container - positioned on the right side of canvas, moved higher
             GameObject voiceGroupGO = new GameObject("Voice Selection Group", typeof(RectTransform));
             voiceGroupGO.transform.SetParent(panel.transform, false);
             var groupRect = voiceGroupGO.GetComponent<RectTransform>();
-            // Position like MainDemo 15.unity: left side with anchors
-            groupRect.anchorMin = new Vector2(0.05f, 0.05f);
-            groupRect.anchorMax = new Vector2(0.48f, 0.4f); // Increased height for better spacing
+            // Position on right side: from 55% to 95% horizontally, moved up higher from 0.15f to 0.25f
+            groupRect.anchorMin = new Vector2(0.55f, 0.25f);  // Moved up from 0.15f to 0.25f
+            groupRect.anchorMax = new Vector2(0.95f, 0.6f);   // Moved up from 0.5f to 0.6f  
             groupRect.offsetMin = Vector2.zero;
             groupRect.offsetMax = Vector2.zero;
 
@@ -96,16 +96,16 @@ namespace Setup.Steps
                 float startY = availableHeight - (i * checkboxHeight);
                 float endY = startY - checkboxHeight;
                 checkboxRect.anchorMin = new Vector2(0f, endY);
-                checkboxRect.anchorMax = new Vector2(1f, startY);
+                checkboxRect.anchorMax = new Vector2(0.50f, startY); // Reduced from 1f to 0.95f for narrower checkboxes
                 checkboxRect.offsetMin = new Vector2(2, 2); // Mehr Padding für bessere Abstände
                 checkboxRect.offsetMax = new Vector2(-2, -2);
 
-                // Background
+                // Background - smaller checkbox area
                 var bgGO = new GameObject("Background", typeof(RectTransform));
                 bgGO.transform.SetParent(checkboxGO.transform, false);
                 var bgRect = bgGO.GetComponent<RectTransform>();
                 bgRect.anchorMin = new Vector2(0, 0.2f);
-                bgRect.anchorMax = new Vector2(0.2f, 0.8f);
+                bgRect.anchorMax = new Vector2(0.10f, 0.8f); // Reduced from 0.2f to 0.15f for smaller checkbox
                 bgRect.offsetMin = Vector2.zero;
                 bgRect.offsetMax = Vector2.zero;
                 var bgImage = bgGO.AddComponent<Image>();
@@ -122,11 +122,11 @@ namespace Setup.Steps
                 var checkmarkImage = checkmarkGO.AddComponent<Image>();
                 checkmarkImage.color = new Color(0f, 0.8f, 0f, 1f); // Bright green
 
-                // Label
+                // Label - adjusted for smaller checkbox
                 var labelGO = new GameObject("Label", typeof(RectTransform));
                 labelGO.transform.SetParent(checkboxGO.transform, false);
                 var labelRect = labelGO.GetComponent<RectTransform>();
-                labelRect.anchorMin = new Vector2(0.25f, 0f);
+                labelRect.anchorMin = new Vector2(0.10f, 0f); // Adjusted from 0.25f to 0.18f
                 labelRect.anchorMax = new Vector2(1f, 1f);
                 labelRect.offsetMin = Vector2.zero;
                 labelRect.offsetMax = Vector2.zero;
@@ -639,12 +639,12 @@ namespace Setup.Steps
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
-            // Background
+            // Background - smaller checkbox to match voice checkboxes
             var bgGO = new GameObject("Background", typeof(RectTransform));
             bgGO.transform.SetParent(toggleGO.transform, false);
             var bgRect = bgGO.GetComponent<RectTransform>();
-            bgRect.anchorMin = Vector2.zero;
-            bgRect.anchorMax = Vector2.one;
+            bgRect.anchorMin = new Vector2(0, 0.2f);
+            bgRect.anchorMax = new Vector2(0.10f, 0.8f); // Reduced to match voice checkboxes (0.10f)
             bgRect.offsetMin = Vector2.zero;
             bgRect.offsetMax = Vector2.zero;
             var bgImage = bgGO.AddComponent<Image>();
@@ -662,11 +662,11 @@ namespace Setup.Steps
             // Wird nur bei Aktivierung sichtbar
             checkmarkImage.color = new Color(0.2f, 0.8f, 0.2f, 1f);
 
-            // Label
+            // Label - adjusted position to match smaller checkbox
             var labelGO = new GameObject("Label", typeof(RectTransform));
             labelGO.transform.SetParent(toggleGO.transform, false);
             var labelRect = labelGO.GetComponent<RectTransform>();
-            labelRect.anchorMin = new Vector2(1.05f, 0);
+            labelRect.anchorMin = new Vector2(0.12f, 0); // Adjusted from 1.05f to 0.12f to start right after checkbox
             labelRect.anchorMax = new Vector2(2f, 1);
             labelRect.offsetMin = Vector2.zero;
             labelRect.offsetMax = Vector2.zero;

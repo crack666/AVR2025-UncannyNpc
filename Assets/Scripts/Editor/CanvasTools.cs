@@ -117,6 +117,12 @@ public static class CanvasTools
             Debug.Log($"[Canvas Tools] Added FixCanvasForVR component to {selectedCanvas.name}");
         }
 
+        // Set the target canvas before running the fix
+        var serializedObject = new SerializedObject(canvasFixer);
+        var targetCanvasProperty = serializedObject.FindProperty("targetCanvas");
+        targetCanvasProperty.objectReferenceValue = selectedCanvas;
+        serializedObject.ApplyModifiedProperties();
+
         // Run the fix
         canvasFixer.FixCanvasConfiguration();
             

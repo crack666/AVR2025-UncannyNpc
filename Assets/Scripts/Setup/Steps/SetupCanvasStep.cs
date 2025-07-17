@@ -292,7 +292,7 @@ namespace Setup.Steps
 
             // --- Configure Canvas settings ---
             Canvas.renderMode = RenderMode.WorldSpace; // Always World Space for XR (canvasMode parameter ignored)
-            Canvas.transform.position = new Vector3(0, 2, 3); // Position in front of player
+            Canvas.transform.position = new Vector3(0, 2, 5); // Position in front of player
             Canvas.transform.rotation = Quaternion.identity;
             var rectTransform = Canvas.GetComponent<RectTransform>();
             if (rectTransform == null)

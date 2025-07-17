@@ -49,8 +49,22 @@ namespace Diagnostics
         {
             if (targetCanvas == null)
             {
-                Debug.LogError("No Canvas assigned!");
-                return;
+                // Try to find canvas on this GameObject first
+                targetCanvas = GetComponent<Canvas>();
+                
+                // If still null, try to find any canvas in the scene
+                if (targetCanvas == null)
+                {
+                    targetCanvas = FindFirstObjectByType<Canvas>();
+                }
+                
+                if (targetCanvas == null)
+                {
+                    Debug.LogError("No Canvas found! Please assign a target canvas or add this component to a Canvas GameObject.");
+                    return;
+                }
+                
+                Debug.Log($"[FixCanvasForVR] Auto-assigned target canvas: {targetCanvas.name}");
             }
 
             Debug.Log("🔧 Fixing Canvas for VR...");
