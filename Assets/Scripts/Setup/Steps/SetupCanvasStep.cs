@@ -303,7 +303,7 @@ namespace Setup.Steps
                 log("❌ RectTransform missing on Canvas! Aborting setup.");
                 return;
             }
-            rectTransform.sizeDelta = new Vector2(400, 225); // Canvas noch kleiner anzeigen
+            rectTransform.sizeDelta = new Vector2(480, 225); // Canvas noch kleiner anzeigen
             Canvas.transform.localScale = Vector3.one * worldCanvasScale; // Use provided scale
             log($"✅ Configured Canvas: World Space mode, scale: {worldCanvasScale}, positioned in front of player.");
 

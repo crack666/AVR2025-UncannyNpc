@@ -279,12 +279,22 @@ namespace Setup.Steps
             var customAvatarGO = AvatarManager.Instance.GetAvatar("CustomAvatar");
             if (customAvatarGO != null)
             {
+                // Füge Custom Avatar als vierten Button in die bestehende Reihe ein
                 avatarNames.Add("Custom Avatar");
                 avatarImageNames.Add("Custom_Raw_Image");
-                imageResourcePaths.Add("CustomAvatar"); // Platzhalter, falls ein Icon existiert
+                imageResourcePaths.Add("Custom"); // Verwende Custom.png als Bild
                 avatarGameObjectNames.Add("CustomAvatar");
-                buttonPositions.Add(new Vector2(0f, -45.9f)); // Unterhalb der anderen
-                imagePositions.Add(new Vector2(0f, -65.9f));
+                // Platziere alle vier Buttons gleichmäßig nebeneinander
+                float spacing = 65f;
+                buttonPositions.Clear();
+                imagePositions.Clear();
+                int count = avatarNames.Count;
+                float startX = -spacing * (count - 1) / 2f;
+                for (int i = 0; i < count; i++)
+                {
+                    buttonPositions.Add(new Vector2(startX + i * spacing, -20.9f));
+                    imagePositions.Add(new Vector2(startX + i * spacing, -40.9f));
+                }
             }
 
             for (int i = 0; i < avatarNames.Count; i++)
