@@ -5,6 +5,10 @@ using System.IO;
 using Diagnostics;
 using Setup.Steps;
 using NPC;
+using System.Linq;
+
+// This ensures MetaXRBuildingBlocksManager is available
+// [MetaXRBuildingBlocksManager is in the same assembly]
 
 public class OpenAINPCMenuSetup : EditorWindow
 {
@@ -12,9 +16,10 @@ public class OpenAINPCMenuSetup : EditorWindow
     public static void ShowWindow()
     {
         OpenAINPCMenuSetup window = GetWindow<OpenAINPCMenuSetup>(true, "OpenAI NPC Quick Setup");
-        window.position = new Rect(Screen.width / 2 - 250, Screen.height / 2 - 300, 500, 800); // Erweiterte Größe
+        window.position = new Rect(Screen.width / 2 - 300, Screen.height / 2 - 350, 600, 920); // Größeres Fenster für mehr Optionen
         window.InitAndCheckAvatar();
         window.CheckLipSyncStatus();
+        window.InitializeMetaXRManager(); // Initialize MetaXR manager
         window.Show();
     }
 
@@ -35,6 +40,11 @@ public class OpenAINPCMenuSetup : EditorWindow
     private bool lipSyncStatusChecked = false;
     private bool showLipSyncDetails = false;
     private Vector2 scrollPosition;
+
+    // Meta XR Building Blocks
+    private bool setupMetaXRBuildingBlocks = true; // Standardmäßig aktiviert
+    private bool showMetaXRDetails = false;
+    private MetaXRBuildingBlocksManager metaXRManager; // Instance for Building Blocks functionality
 
     private enum LipSyncStatus
     {
@@ -70,6 +80,15 @@ public class OpenAINPCMenuSetup : EditorWindow
         {
             Debug.Log($"[OpenAI NPC Setup] Avatar in Szene gefunden: {foundAvatarInstance.name}");
             showObjectPicker = true; // Zeige trotzdem die erweiterten Optionen
+        }
+    }
+
+    private void InitializeMetaXRManager()
+    {
+        if (metaXRManager == null)
+        {
+            metaXRManager = new MetaXRBuildingBlocksManager();
+            Debug.Log("[OpenAI NPC Setup] MetaXR Building Blocks Manager initialized.");
         }
     }
 
@@ -163,6 +182,11 @@ public class OpenAINPCMenuSetup : EditorWindow
 
         // Main Setup Section
         DrawMainSetupSection();
+
+        GUILayout.Space(15);
+
+        // Meta XR Building Blocks Section
+        DrawMetaXRBuildingBlocksSection();
 
         GUILayout.Space(15);
 
@@ -442,6 +466,55 @@ public class OpenAINPCMenuSetup : EditorWindow
         EditorGUILayout.EndVertical();
     }
 
+    private void DrawMetaXRBuildingBlocksSection()
+    {
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        
+        // Header mit Toggle
+        EditorGUILayout.BeginHorizontal();
+        setupMetaXRBuildingBlocks = EditorGUILayout.Toggle(setupMetaXRBuildingBlocks, GUILayout.Width(20));
+        EditorGUILayout.LabelField("🏗️ Meta XR Building Blocks", EditorStyles.boldLabel);
+        
+        if (GUILayout.Button(showMetaXRDetails ? "▼ Hide Details" : "▶ Show Details", EditorStyles.miniButton, GUILayout.Width(100)))
+        {
+            showMetaXRDetails = !showMetaXRDetails;
+        }
+        EditorGUILayout.EndHorizontal();
+
+        // Status und Beschreibung
+        if (setupMetaXRBuildingBlocks)
+        {
+            EditorGUILayout.HelpBox("✅ Will setup Camera Rig, Controller Tracking, and Synthetic Hands for complete VR interaction", MessageType.Info);
+        }
+        else
+        {
+            EditorGUILayout.HelpBox("⚠️ Manual VR setup required - ensure Controllers and Interaction System are configured", MessageType.Warning);
+        }
+
+        // Details Section
+        if (showMetaXRDetails)
+        {
+            GUILayout.Space(5);
+            EditorGUILayout.LabelField("Building Blocks to Install:", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("• Camera Rig (VR Camera Setup)", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("• Controller Tracking (Hand Controllers)", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("• Synthetic Hands (UI Raycasting)", EditorStyles.miniLabel);
+            
+            GUILayout.Space(5);
+            
+            // Manual Building Blocks Button
+            if (GUILayout.Button("Open Meta XR Building Blocks Window", GUILayout.Height(25)))
+            {
+                if (metaXRManager == null) InitializeMetaXRManager();
+                metaXRManager.OpenBuildingBlocksWindow();
+            }
+            
+            EditorGUILayout.HelpBox("Note: These essential Building Blocks will be installed automatically during Quick Setup if enabled above.", MessageType.Info);
+        }
+
+        EditorGUILayout.EndVertical();
+    }
+
     private void DrawActionButtons()
     {
         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -599,6 +672,13 @@ public class OpenAINPCMenuSetup : EditorWindow
             }
         );
 
+        // Setup Meta XR Building Blocks if enabled
+        if (setupMetaXRBuildingBlocks)
+        {
+            if (metaXRManager == null) InitializeMetaXRManager();
+            metaXRManager.SetupEssentialBuildingBlocks(setupMetaXRBuildingBlocks);
+        }
+
         if (allValid)
         {
             string message = lipSyncStatus == LipSyncStatus.ULipSyncInstalled ?
@@ -691,5 +771,4 @@ public class OpenAINPCMenuSetup : EditorWindow
         Debug.LogWarning("[OpenAI NPC Setup] No RPM Animation Controller found in project");
         return null;
     }
-
 }
