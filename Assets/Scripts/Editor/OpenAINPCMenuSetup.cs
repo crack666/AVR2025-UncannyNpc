@@ -461,6 +461,8 @@ public class OpenAINPCMenuSetup : EditorWindow
             // Prefab in Szene instanziieren
             GameObject avatarInstance = (GameObject)PrefabUtility.InstantiatePrefab(selectedAvatarPrefab);
             avatarInstance.name = selectedAvatarPrefab.name;
+            // Register as 'CustomAvatar' for UI logic
+            Setup.AvatarManager.Instance.RegisterAvatar("CustomAvatar", avatarInstance);
             Undo.RegisterCreatedObjectUndo(avatarInstance, "Create Avatar from Picker");
             Debug.Log($"[OpenAI NPC Setup] Avatar Prefab instantiated: {avatarInstance.name}");
 

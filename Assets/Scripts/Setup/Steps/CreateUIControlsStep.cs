@@ -22,6 +22,14 @@ namespace Setup.Steps
         {
             this.log = log;
             this.panel = panel;
+            // Subscribe to custom avatar loaded event
+            Setup.AvatarManager.Instance.OnCustomAvatarLoaded += OnCustomAvatarLoaded;
+        }
+
+        private void OnCustomAvatarLoaded(GameObject customAvatar)
+        {
+            log("🔄 Custom Avatar loaded, refreshing Select Avatar UI...");
+            CreateSelectAvatarUI();
         }
 
         public void Execute()
@@ -189,6 +197,13 @@ namespace Setup.Steps
         {
             log("🎭 Creating Select Avatar UI...");
 
+            // Remove old Select Avatar UI if it exists
+            Transform old = panel.transform.Find("Select Avatar");
+            if (old != null)
+            {
+                GameObject.DestroyImmediate(old.gameObject);
+            }
+
             // Create the main Select Avatar container
             GameObject selectAvatarGO = new GameObject("Select Avatar", typeof(RectTransform));
             selectAvatarGO.transform.SetParent(panel.transform, false);
@@ -244,51 +259,58 @@ namespace Setup.Steps
             descriptionText.raycastTarget = true;
             
             // Create Avatar Buttons with original names and positioning
-            string[] avatarNames = { "Robert Button", "Leonard Button", "RPM Button" };
-            string[] avatarImageNames = { "Robert_Raw_Image", "Leonard_Raw_Image", "RPM_Raw_Image" };
-            string[] imageResourcePaths = { "Robert", "Leonard", "RPM" }; // Image names in Assets/Images
-            string[] avatarGameObjectNames = { "Robert", "Leonard", "682cd77aff222706b8291007" }; // Avatar GameObject names
-            
-            Vector2[] buttonPositions = { 
-                new Vector2(-65f, -20.9f),   // Robert Button
-                new Vector2(0f, -20.9f),     // Leonard Button
-                new Vector2(65f, -20.9f)     // RPM Button
+            // Standard-Avatare
+            List<string> avatarNames = new List<string> { "Robert Button", "Leonard Button", "RPM Button" };
+            List<string> avatarImageNames = new List<string> { "Robert_Raw_Image", "Leonard_Raw_Image", "RPM_Raw_Image" };
+            List<string> imageResourcePaths = new List<string> { "Robert", "Leonard", "RPM" };
+            List<string> avatarGameObjectNames = new List<string> { "Robert", "Leonard", "682cd77aff222706b8291007" };
+            List<Vector2> buttonPositions = new List<Vector2> {
+                new Vector2(-65f, -20.9f),
+                new Vector2(0f, -20.9f),
+                new Vector2(65f, -20.9f)
             };
-            Vector2[] imagePositions = { 
-                new Vector2(-65f, -40.9f),       // Robert_Raw_Image - neue Höhe
-                new Vector2(0f, -40.9f),         // Leonard_Raw_Image - neue Höhe
-                new Vector2(65f, -40.9f)         // RPM_Raw_Image - neue Höhe
+            List<Vector2> imagePositions = new List<Vector2> {
+                new Vector2(-65f, -40.9f),
+                new Vector2(0f, -40.9f),
+                new Vector2(65f, -40.9f)
             };
-            
-            for (int i = 0; i < avatarNames.Length; i++)
+
+            // Prüfe, ob ein Custom Avatar geladen ist
+            var customAvatarGO = AvatarManager.Instance.GetAvatar("CustomAvatar");
+            if (customAvatarGO != null)
             {
-                // Create Button GameObject
+                avatarNames.Add("Custom Avatar");
+                avatarImageNames.Add("Custom_Raw_Image");
+                imageResourcePaths.Add("CustomAvatar"); // Platzhalter, falls ein Icon existiert
+                avatarGameObjectNames.Add("CustomAvatar");
+                buttonPositions.Add(new Vector2(0f, -45.9f)); // Unterhalb der anderen
+                imagePositions.Add(new Vector2(0f, -65.9f));
+            }
+
+            for (int i = 0; i < avatarNames.Count; i++)
+            {
                 GameObject buttonGO = new GameObject(avatarNames[i], typeof(RectTransform));
                 buttonGO.transform.SetParent(buttonsGO.transform, false);
                 buttonGO.layer = LayerMask.NameToLayer("UI");
-                
+
                 var buttonRect = buttonGO.GetComponent<RectTransform>();
                 buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
                 buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
-                buttonRect.sizeDelta = new Vector2(52.74f, 11.21f); // Original size
+                buttonRect.sizeDelta = new Vector2(52.74f, 11.21f);
                 buttonRect.anchoredPosition = buttonPositions[i];
-                
-                // Add Image component first (as background)
+
                 var buttonImage = buttonGO.AddComponent<Image>();
                 buttonImage.color = Color.white;
                 buttonImage.raycastTarget = true;
                 buttonImage.maskable = true;
-                // Use Unity's default UI sprite (knob)
                 buttonImage.sprite = Resources.GetBuiltinResource<Sprite>("UI/Skin/Knob.psd");
                 buttonImage.type = Image.Type.Sliced;
                 buttonImage.fillCenter = true;
-                
-                // Add Button component
+
                 var button = buttonGO.AddComponent<Button>();
                 button.targetGraphic = buttonImage;
                 button.interactable = true;
-                
-                // Configure button colors (matching original)
+
                 var colors = new ColorBlock();
                 colors.normalColor = Color.white;
                 colors.highlightedColor = new Color(0.9607843f, 0.9607843f, 0.9607843f, 1f);
@@ -298,49 +320,51 @@ namespace Setup.Steps
                 colors.colorMultiplier = 1f;
                 colors.fadeDuration = 0.1f;
                 button.colors = colors;
-                
-                // Configure button transition
+
                 button.transition = Selectable.Transition.ColorTint;
-                
-                // Add OnClick event (matching original structure - activate selected, deactivate others)
+
                 int avatarIndex = i;
-                
-                // Clear any existing listeners
                 button.onClick.RemoveAllListeners();
-                
-                // Method 1: Add runtime listener (this works immediately)
                 button.onClick.AddListener(() => {
-                    OnAvatarButtonClicked(avatarIndex, avatarNames[avatarIndex], avatarGameObjectNames, descriptionText);
+                    // Alle Avatare (inkl. Custom) durchgehen und nur den gewählten aktivieren
+                    for (int j = 0; j < avatarGameObjectNames.Count; j++)
+                    {
+                        var go = AvatarManager.Instance.GetAvatar(avatarGameObjectNames[j]);
+                        if (go != null)
+                            go.SetActive(j == avatarIndex);
+                    }
+                    // UI-Feedback
+                    if (descriptionText != null)
+                        descriptionText.text = $"{avatarNames[avatarIndex].Replace(" Button", "")} Selected";
+                    // Logging
+                    UnityEngine.Debug.Log($"[Avatar] {avatarNames[avatarIndex]} selected - only this avatar is active");
                 });
-                
-                // Method 2: Setup persistent calls using AvatarManager
-                SetupPersistentCallsWhenReady(button, avatarIndex, avatarNames[i], avatarGameObjectNames);
-                
-                UnityEngine.Debug.Log($"[UI] Added OnClick event to button: {avatarNames[i]}");
-                
-                // Create Button Text (child of button)
+
+                // Persistent Calls für Editor (optional, wie bisher)
+                SetupPersistentCallsWhenReady(button, avatarIndex, avatarNames[i], avatarGameObjectNames.ToArray());
+
                 GameObject buttonTextGO = new GameObject("Text", typeof(RectTransform));
                 buttonTextGO.transform.SetParent(buttonGO.transform, false);
                 buttonTextGO.layer = LayerMask.NameToLayer("UI");
-                
+
                 var buttonTextRect = buttonTextGO.GetComponent<RectTransform>();
                 buttonTextRect.anchorMin = Vector2.zero;
                 buttonTextRect.anchorMax = Vector2.one;
                 buttonTextRect.sizeDelta = Vector2.zero;
                 buttonTextRect.anchoredPosition = Vector2.zero;
-                
+
                 var buttonText = buttonTextGO.AddComponent<TMPro.TextMeshProUGUI>();
-                buttonText.text = avatarNames[i].Replace(" Button", ""); // "Robert", "Leonard", "RPM"
+                buttonText.text = avatarNames[i].Replace(" Button", "");
                 buttonText.fontSize = 8f;
                 buttonText.alignment = TMPro.TextAlignmentOptions.Center;
                 buttonText.color = Color.black;
-                buttonText.raycastTarget = false; // Don't block button clicks
-                
+                buttonText.raycastTarget = false;
+
                 UnityEngine.Debug.Log($"[UI] Created avatar button: {avatarNames[i]} at position {buttonPositions[i]}");
             }
             
             // Create Raw Images with actual textures from Assets/Images
-            for (int i = 0; i < avatarImageNames.Length; i++)
+            for (int i = 0; i < avatarImageNames.Count; i++)
             {
                 GameObject imageGO = new GameObject(avatarImageNames[i], typeof(RectTransform));
                 imageGO.transform.SetParent(imagesGO.transform, false);
