@@ -5,9 +5,31 @@ using System.Linq;
 /// <summary>
 /// Manager class for Meta XR Building Blocks automation
 /// Handles programmatic installation of Meta XR Building Blocks like Camera Rig, Controller Tracking, etc.
+/// Uses the same approach as OVRComprehensiveRigWizard
 /// </summary>
 public class MetaXRBuildingBlocksManager
 {
+    // Template definitions similar to OVRComprehensiveRigWizard
+    private static readonly object OVRCameraRigTemplate = CreateTemplate("OVRCameraRig", "126d619cf4daa52469682f85c1378b4a");
+    private static readonly object OVRInteractionComprehensiveTemplate = CreateTemplate("OVRInteractionComprehensive", "0a7d2469f24041c4284c66706f84c45e");
+    
+    private static object CreateTemplate(string name, string guid)
+    {
+        try
+        {
+            // Try to create Template object via reflection
+            var templateType = System.Type.GetType("Oculus.Interaction.Editor.QuickActions.Template, Oculus.Interaction.Editor");
+            if (templateType != null)
+            {
+                return System.Activator.CreateInstance(templateType, name, guid);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[MetaXR BB Manager] Failed to create template {name}: {ex.Message}");
+        }
+        return null;
+    }
     /// <summary>
     /// Opens the Meta XR Building Blocks window
     /// </summary>
@@ -92,7 +114,7 @@ public class MetaXRBuildingBlocksManager
     }
 
     /// <summary>
-    /// Sets up essential Meta XR Building Blocks for VR interaction
+    /// Sets up essential Meta XR Building Blocks for VR interaction using Templates approach
     /// </summary>
     /// <param name="setupEnabled">Whether to actually install the blocks</param>
     public void SetupEssentialBuildingBlocks(bool setupEnabled = true)
@@ -103,28 +125,306 @@ public class MetaXRBuildingBlocksManager
             return;
         }
 
-        Debug.Log("[MetaXR BB Manager] Setting up Meta XR Building Blocks...");
+        Debug.Log("[MetaXR BB Manager] Setting up Meta XR Building Blocks using Templates approach...");
 
         try
         {
-            // Install the core VR interaction components using the correct Block IDs
-            // Based on BlockDataIds.cs, we install the essential components individually
+            // 1. Create OVRCameraRig if not exists
+            var existingCameraRig = FindExistingCameraRig();
+            if (existingCameraRig == null)
+            {
+                Debug.Log("[MetaXR BB Manager] Creating OVRCameraRig...");
+                CreateCameraRig();
+            }
+            else
+            {
+                Debug.Log("[MetaXR BB Manager] OVRCameraRig already exists.");
+            }
+
+            // 2. Create Interaction Rig
+            Debug.Log("[MetaXR BB Manager] Creating Interaction Rig...");
+            CreateInteractionRig();
             
-            // 1. Camera Rig - Essential VR camera setup
-            InstallBuildingBlockById("Meta.XR.BuildingBlocks.Editor.BlockDataIds", "CameraRig", "Camera Rig");
-            
-            // 2. Controller Tracking - Hand controller support
-            InstallBuildingBlockById("Meta.XR.BuildingBlocks.Editor.BlockDataIds", "ControllerTracking", "Controller Tracking");
-            
-            // 3. Synthetic Hands - For UI interaction and raycasting
-            InstallBuildingBlockById("Meta.XR.BuildingBlocks.Editor.BlockDataIds", "SyntheticHands", "Synthetic Hands");
-            
-            Debug.Log("[MetaXR BB Manager] ✅ Meta XR Building Blocks setup completed.");
-            Debug.Log("[MetaXR BB Manager] Note: Installed Camera Rig, Controller Tracking, and Synthetic Hands for complete VR interaction.");
+            Debug.Log("[MetaXR BB Manager] ✅ Meta XR Building Blocks setup completed using Templates.");
         }
         catch (System.Exception ex)
         {
             Debug.LogError($"[MetaXR BB Manager] Error setting up Meta XR Building Blocks: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Creates OVRCameraRig using Templates approach
+    /// </summary>
+    private void CreateCameraRig()
+    {
+        try
+        {
+            var templatesType = System.Type.GetType("Oculus.Interaction.Editor.QuickActions.Templates, Oculus.Interaction.Editor");
+            if (templatesType == null)
+            {
+                Debug.LogError("[MetaXR BB Manager] Could not find Templates class.");
+                return;
+            }
+
+            var createFromTemplateMethod = templatesType.GetMethod("CreateFromTemplate", 
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            
+            if (createFromTemplateMethod == null)
+            {
+                Debug.LogError("[MetaXR BB Manager] Could not find CreateFromTemplate method.");
+                return;
+            }
+
+            Debug.Log("[MetaXR BB Manager] Creating OVRCameraRig from template...");
+            
+            // Create OVRCameraRig: Templates.CreateFromTemplate(null, OVRCameraRigTemplate, asPrefab: true)
+            var cameraRigObject = createFromTemplateMethod.Invoke(null, new object[] { null, OVRCameraRigTemplate, true });
+            
+            if (cameraRigObject != null)
+            {
+                Debug.Log("[MetaXR BB Manager] ✅ OVRCameraRig created successfully.");
+                
+                // Configure OVRManager similar to OVRComprehensiveRigWizard
+                var cameraRigGameObject = cameraRigObject as GameObject;
+                if (cameraRigGameObject != null && cameraRigGameObject.TryGetComponent(out object ovrManager))
+                {
+                    ConfigureOVRManager(ovrManager);
+                }
+            }
+            else
+            {
+                Debug.LogError("[MetaXR BB Manager] Failed to create OVRCameraRig from template.");
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[MetaXR BB Manager] Error creating OVRCameraRig: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Creates Interaction Rig using Templates approach
+    /// </summary>
+    private void CreateInteractionRig()
+    {
+        try
+        {
+            var cameraRig = FindExistingCameraRig();
+            if (cameraRig == null)
+            {
+                Debug.LogError("[MetaXR BB Manager] No OVRCameraRig found for interaction rig creation.");
+                return;
+            }
+
+            var templatesType = System.Type.GetType("Oculus.Interaction.Editor.QuickActions.Templates, Oculus.Interaction.Editor");
+            if (templatesType == null)
+            {
+                Debug.LogError("[MetaXR BB Manager] Could not find Templates class.");
+                return;
+            }
+
+            var createFromTemplateMethod = templatesType.GetMethod("CreateFromTemplate", 
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            
+            if (createFromTemplateMethod == null)
+            {
+                Debug.LogError("[MetaXR BB Manager] Could not find CreateFromTemplate method.");
+                return;
+            }
+
+            Debug.Log("[MetaXR BB Manager] Creating Interaction Rig from template...");
+            
+            // Get Transform from cameraRig
+            Transform cameraRigTransform = null;
+            if (cameraRig is GameObject cameraRigGameObject)
+            {
+                cameraRigTransform = cameraRigGameObject.transform;
+            }
+            else if (cameraRig is Component cameraRigComponent)
+            {
+                cameraRigTransform = cameraRigComponent.transform;
+            }
+            
+            if (cameraRigTransform == null)
+            {
+                Debug.LogError("[MetaXR BB Manager] Could not get Transform from OVRCameraRig.");
+                return;
+            }
+            
+            // Create Interaction Rig: Templates.CreateFromTemplate(cameraRigTransform, OVRInteractionComprehensiveTemplate, asPrefab: true)
+            var interactionRigObject = createFromTemplateMethod.Invoke(null, new object[] { cameraRigTransform, OVRInteractionComprehensiveTemplate, true });
+            
+            if (interactionRigObject != null)
+            {
+                Debug.Log("[MetaXR BB Manager] ✅ Interaction Rig created successfully.");
+                
+                // Disable duplicate visuals similar to OVRComprehensiveRigWizard
+                DisableDuplicateVisuals(cameraRig);
+                
+                // Select the created object
+                if (interactionRigObject is UnityEngine.Object unityObject)
+                {
+                    EditorGUIUtility.PingObject(unityObject);
+                    Selection.activeObject = unityObject;
+                }
+            }
+            else
+            {
+                Debug.LogError("[MetaXR BB Manager] Failed to create Interaction Rig from template.");
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[MetaXR BB Manager] Error creating Interaction Rig: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Find existing OVRCameraRig in scene
+    /// </summary>
+    private object FindExistingCameraRig()
+    {
+        try
+        {
+            var ovrCameraRigType = System.Type.GetType("OVRCameraRig, Assembly-CSharp");
+            if (ovrCameraRigType == null)
+            {
+                // Try alternative assembly
+                ovrCameraRigType = System.Type.GetType("OVRCameraRig, Oculus.VR");
+            }
+            
+            if (ovrCameraRigType != null)
+            {
+                return Object.FindFirstObjectByType(ovrCameraRigType);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[MetaXR BB Manager] Error finding OVRCameraRig: {ex.Message}");
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Configure OVRManager similar to OVRComprehensiveRigWizard
+    /// </summary>
+    private void ConfigureOVRManager(object ovrManager)
+    {
+        try
+        {
+            var ovrManagerType = ovrManager.GetType();
+            
+            // Set tracking origin to FloorLevel
+            var trackingOriginTypeField = ovrManagerType.GetField("_trackingOriginType", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            
+            if (trackingOriginTypeField != null)
+            {
+                var trackingOriginType = trackingOriginTypeField.FieldType;
+                var floorLevelValue = System.Enum.Parse(trackingOriginType, "FloorLevel");
+                trackingOriginTypeField.SetValue(ovrManager, floorLevelValue);
+                Debug.Log("[MetaXR BB Manager] OVRManager tracking origin set to FloorLevel.");
+            }
+            
+            // Set controller driven hand poses
+            var controllerDrivenHandPosesProperty = ovrManagerType.GetProperty("controllerDrivenHandPosesType");
+            if (controllerDrivenHandPosesProperty != null)
+            {
+                var enumType = controllerDrivenHandPosesProperty.PropertyType;
+                var conformingValue = System.Enum.Parse(enumType, "ConformingToController");
+                controllerDrivenHandPosesProperty.SetValue(ovrManager, conformingValue);
+                Debug.Log("[MetaXR BB Manager] OVRManager controller driven hand poses configured.");
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[MetaXR BB Manager] Error configuring OVRManager: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Disable duplicate visuals similar to OVRComprehensiveRigWizard
+    /// </summary>
+    private void DisableDuplicateVisuals(object cameraRig)
+    {
+        try
+        {
+            var cameraRigGameObject = cameraRig as GameObject;
+            if (cameraRigGameObject == null)
+            {
+                var cameraRigComponent = cameraRig as Component;
+                if (cameraRigComponent != null)
+                {
+                    cameraRigGameObject = cameraRigComponent.gameObject;
+                }
+            }
+            
+            if (cameraRigGameObject != null)
+            {
+                var ovrHandType = System.Type.GetType("OVRHand, Assembly-CSharp") ?? System.Type.GetType("OVRHand, Oculus.VR");
+                if (ovrHandType != null)
+                {
+                    var ovrHands = cameraRigGameObject.GetComponentsInChildren(ovrHandType);
+                    foreach (var hand in ovrHands)
+                    {
+                        DisableHandVisualComponents(hand);
+                    }
+                }
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[MetaXR BB Manager] Error disabling duplicate visuals: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Disable hand visual components to avoid duplicates
+    /// </summary>
+    private void DisableHandVisualComponents(object hand)
+    {
+        try
+        {
+            var handGameObject = (hand as Component)?.gameObject;
+            if (handGameObject == null) return;
+
+            // Disable OVRSkeletonRenderer
+            var skeletonRenderer = handGameObject.GetComponent<Component>();
+            if (skeletonRenderer != null && skeletonRenderer.GetType().Name == "OVRSkeletonRenderer")
+            {
+                var enabledProperty = skeletonRenderer.GetType().GetProperty("enabled");
+                enabledProperty?.SetValue(skeletonRenderer, false);
+            }
+
+            // Disable OVRMesh
+            var ovrMesh = handGameObject.GetComponent<Component>();
+            if (ovrMesh != null && ovrMesh.GetType().Name == "OVRMesh")
+            {
+                var enabledProperty = ovrMesh.GetType().GetProperty("enabled");
+                enabledProperty?.SetValue(ovrMesh, false);
+            }
+
+            // Disable OVRMeshRenderer
+            var meshRenderer = handGameObject.GetComponent<Component>();
+            if (meshRenderer != null && meshRenderer.GetType().Name == "OVRMeshRenderer")
+            {
+                var enabledProperty = meshRenderer.GetType().GetProperty("enabled");
+                enabledProperty?.SetValue(meshRenderer, false);
+            }
+
+            // Disable SkinnedMeshRenderer
+            var skinnedMeshRenderer = handGameObject.GetComponent<SkinnedMeshRenderer>();
+            if (skinnedMeshRenderer != null)
+            {
+                skinnedMeshRenderer.enabled = false;
+            }
+
+            Debug.Log("[MetaXR BB Manager] Duplicate hand visual components disabled.");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[MetaXR BB Manager] Error disabling hand visual components: {ex.Message}");
         }
     }
 
@@ -294,7 +594,7 @@ public class MetaXRBuildingBlocksManager
             // Execute the installation
             if (installMethod != null)
             {
-                Debug.Log($"[OpenAI NPC Setup] Installing {blockDisplayName}...");
+                Debug.Log($"[MetaXR BB Manager] Installing {blockDisplayName}...");
                 
                 var parameters = installMethod.GetParameters();
                 object[] args = new object[parameters.Length];
@@ -322,16 +622,117 @@ public class MetaXRBuildingBlocksManager
                 }
                 
                 installMethod.Invoke(blockData, args);
-                Debug.Log($"[OpenAI NPC Setup] ✅ {blockDisplayName} installed successfully.");
+                Debug.Log($"[MetaXR BB Manager] ✅ {blockDisplayName} installed successfully.");
             }
             else
             {
-                Debug.LogError($"[OpenAI NPC Setup] Could not find any suitable installation method for {blockDisplayName}.");
+                // Use Utils.GetInstallationRoutine - the correct Meta XR SDK pattern!
+                Debug.Log($"[MetaXR BB Manager] Using Utils.GetInstallationRoutine for {blockDisplayName}");
+                
+                var getInstallationRoutineMethod = utilsType.GetMethod("GetInstallationRoutine", 
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+                    null,
+                    new System.Type[] { typeof(string) },
+                    null);
+                
+                if (getInstallationRoutineMethod != null)
+                {
+                    try
+                    {
+                        Debug.Log($"[MetaXR BB Manager] Getting installation routine for block ID: {blockId}");
+                        var installationRoutine = getInstallationRoutineMethod.Invoke(null, new object[] { blockId });
+                        
+                        if (installationRoutine != null)
+                        {
+                            Debug.Log($"[MetaXR BB Manager] Installation routine found: {installationRoutine.GetType().Name}");
+                            
+                            // Try to execute the installation routine manually
+                            var routineType = installationRoutine.GetType();
+                            var executeMethod = routineType.GetMethod("Execute", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                            var runMethod = routineType.GetMethod("Run", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                            var startMethod = routineType.GetMethod("Start", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                            
+                            bool executed = false;
+                            
+                            // Try Execute method
+                            if (executeMethod != null)
+                            {
+                                try
+                                {
+                                    executeMethod.Invoke(installationRoutine, null);
+                                    Debug.Log($"[MetaXR BB Manager] ✅ {blockDisplayName} executed via Execute() method.");
+                                    executed = true;
+                                }
+                                catch (System.Exception ex)
+                                {
+                                    Debug.LogError($"[MetaXR BB Manager] Execute() failed: {ex.Message}");
+                                }
+                            }
+                            
+                            // Try Run method
+                            if (!executed && runMethod != null)
+                            {
+                                try
+                                {
+                                    runMethod.Invoke(installationRoutine, null);
+                                    Debug.Log($"[MetaXR BB Manager] ✅ {blockDisplayName} executed via Run() method.");
+                                    executed = true;
+                                }
+                                catch (System.Exception ex)
+                                {
+                                    Debug.LogError($"[MetaXR BB Manager] Run() failed: {ex.Message}");
+                                }
+                            }
+                            
+                            // Try Start method
+                            if (!executed && startMethod != null)
+                            {
+                                try
+                                {
+                                    startMethod.Invoke(installationRoutine, null);
+                                    Debug.Log($"[MetaXR BB Manager] ✅ {blockDisplayName} executed via Start() method.");
+                                    executed = true;
+                                }
+                                catch (System.Exception ex)
+                                {
+                                    Debug.LogError($"[MetaXR BB Manager] Start() failed: {ex.Message}");
+                                }
+                            }
+                            
+                            if (!executed)
+                            {
+                                Debug.LogWarning($"[MetaXR BB Manager] Could not execute installation routine for {blockDisplayName}. Available methods:");
+                                var routineMethods = routineType.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                                foreach (var method in routineMethods)
+                                {
+                                    var paramTypes = string.Join(", ", method.GetParameters().Select(p => p.ParameterType.Name));
+                                    Debug.Log($"  - {method.Name}({paramTypes})");
+                                }
+                            }
+                            
+                            return;
+                        }
+                        else
+                        {
+                            Debug.LogError($"[MetaXR BB Manager] Installation routine returned null for {blockDisplayName}");
+                        }
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Debug.LogError($"[MetaXR BB Manager] Failed to get installation routine for {blockDisplayName}: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    Debug.LogError($"[MetaXR BB Manager] GetInstallationRoutine method not found in Utils class.");
+                }
+                
+                Debug.LogError($"[MetaXR BB Manager] Could not install {blockDisplayName} - installation routine failed.");
             }
         }
         catch (System.Exception ex)
         {
-            Debug.LogError($"[OpenAI NPC Setup] Error installing {blockDisplayName}: {ex.Message}\nStack trace: {ex.StackTrace}");
+            Debug.LogError($"[MetaXR BB Manager] Error installing {blockDisplayName}: {ex.Message}\nStack trace: {ex.StackTrace}");
         }
     }
 
@@ -680,10 +1081,9 @@ public class MetaXRBuildingBlocksManager
     /// <returns>True if Meta XR SDK is detected</returns>
     public static bool IsMetaXRSDKAvailable()
     {
-        var buildingBlocksWindowType = System.Type.GetType("Meta.XR.BuildingBlocks.Editor.BuildingBlocksWindow, Meta.XR.BuildingBlocks.Editor");
-        var utilsType = System.Type.GetType("Meta.XR.BuildingBlocks.Editor.Utils, Meta.XR.BuildingBlocks.Editor");
-        var blockDataIdsType = System.Type.GetType("Meta.XR.BuildingBlocks.Editor.BlockDataIds, Meta.XR.BuildingBlocks.Editor");
+        var templatesType = System.Type.GetType("Oculus.Interaction.Editor.QuickActions.Templates, Oculus.Interaction.Editor");
+        var ovrCameraRigType = System.Type.GetType("OVRCameraRig, Assembly-CSharp") ?? System.Type.GetType("OVRCameraRig, Oculus.VR");
         
-        return buildingBlocksWindowType != null && utilsType != null && blockDataIdsType != null;
+        return templatesType != null && ovrCameraRigType != null;
     }
 }
