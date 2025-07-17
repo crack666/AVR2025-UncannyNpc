@@ -15,7 +15,7 @@ namespace Setup
         public event System.Action<Dictionary<string, GameObject>> OnAvatarsLoaded;
         
         // Shared avatar position for consistency between quick setup and LoadAvatarsStep
-        private static readonly Vector3 STANDARD_AVATAR_POSITION = new Vector3(1.9f, -1.9f, 1.13f);
+        private static readonly Vector3 STANDARD_AVATAR_POSITION = new Vector3(2f, 0f, -8f); // Vor dem Canvas und auf richtiger Höhe
         private static readonly Vector3 STANDARD_AVATAR_ROTATION = new Vector3(0f, 180f, 0f);
         
         /// <summary>

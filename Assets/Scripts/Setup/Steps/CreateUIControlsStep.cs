@@ -46,10 +46,14 @@ namespace Setup.Steps
             voiceGroupGO.transform.SetParent(panel.transform, false);
             var groupRect = voiceGroupGO.GetComponent<RectTransform>();
             // Position on right side: from 55% to 95% horizontally, moved up higher from 0.15f to 0.25f
-            groupRect.anchorMin = new Vector2(0.55f, 0.25f);  // Moved up from 0.15f to 0.25f
-            groupRect.anchorMax = new Vector2(0.95f, 0.6f);   // Moved up from 0.5f to 0.6f  
-            groupRect.offsetMin = Vector2.zero;
-            groupRect.offsetMax = Vector2.zero;
+        
+            // Set absolute position and size: left -240.6, top 34.3, right 240.6, bottom -34.3, pos z 0
+            groupRect.anchorMin = new Vector2(0.5f, 0.5f);
+            groupRect.anchorMax = new Vector2(0.5f, 0.5f);
+            groupRect.pivot = new Vector2(0.5f, 0.5f);
+            groupRect.anchoredPosition = Vector2.zero;
+            groupRect.sizeDelta = new Vector2(240.6f + 240.6f, 34.3f + 34.3f); // width: 481.2, height: 68.6
+            groupRect.localPosition = new Vector3(50f, 150f, 0f); // pos z 0
 
             // Title Label
             var titleGO = new GameObject("Voice Title", typeof(RectTransform));
@@ -60,8 +64,8 @@ namespace Setup.Steps
             titleRect.offsetMin = Vector2.zero;
             titleRect.offsetMax = Vector2.zero;
             var titleLabel = titleGO.AddComponent<TextMeshProUGUI>();
-            titleLabel.text = "Voice Selection:";
-            titleLabel.fontSize = 7; // Verkleinerte Schrift
+            titleLabel.text = "Voice Selection";
+            titleLabel.fontSize = 8; // Verkleinerte Schrift
             titleLabel.fontStyle = FontStyles.Bold;
             titleLabel.alignment = TextAlignmentOptions.Left;
             titleLabel.color = Color.white;
@@ -77,8 +81,8 @@ namespace Setup.Steps
                 voiceDescriptions[i] = voice.GetDescription();
             }
             
-            float availableHeight = 0.85f; // Reduzierte Höhe für Title
-            float checkboxHeight = availableHeight / voiceCount; // Gleichmäßige Verteilung
+            float availableHeight = 0.80f; // Weniger Platz für kleinere Abstände
+            float checkboxHeight = availableHeight / (voiceCount + 0.5f); // Etwas enger gestapelt
 
             // Create ToggleGroup for exclusive selection
             var toggleGroup = voiceGroupGO.AddComponent<ToggleGroup>();
@@ -92,20 +96,21 @@ namespace Setup.Steps
                 checkboxGO.transform.SetParent(voiceGroupGO.transform, false);
                 var checkboxRect = checkboxGO.GetComponent<RectTransform>();
                 
-                // Position vertically based on index (stack from top to bottom)
+                // Engere vertikale Stapelung
                 float startY = availableHeight - (i * checkboxHeight);
-                float endY = startY - checkboxHeight;
+                float endY = startY - checkboxHeight + 0.01f; // Minimale Überlappung für weniger Abstand
                 checkboxRect.anchorMin = new Vector2(0f, endY);
-                checkboxRect.anchorMax = new Vector2(0.50f, startY); // Reduced from 1f to 0.95f for narrower checkboxes
-                checkboxRect.offsetMin = new Vector2(2, 2); // Mehr Padding für bessere Abstände
-                checkboxRect.offsetMax = new Vector2(-2, -2);
+                checkboxRect.anchorMax = new Vector2(0.25f, startY); // kleinerer selektierbarer Bereich
+                checkboxRect.offsetMin = new Vector2(2, 1); // Weniger Padding oben/unten
+                checkboxRect.offsetMax = new Vector2(-2, -1);
 
                 // Background - smaller checkbox area
                 var bgGO = new GameObject("Background", typeof(RectTransform));
                 bgGO.transform.SetParent(checkboxGO.transform, false);
                 var bgRect = bgGO.GetComponent<RectTransform>();
+                // Background wieder kompakt wie ursprünglich
                 bgRect.anchorMin = new Vector2(0, 0.2f);
-                bgRect.anchorMax = new Vector2(0.10f, 0.8f); // Reduced from 0.2f to 0.15f for smaller checkbox
+                bgRect.anchorMax = new Vector2(0.11f, 0.9f); // kompakte Checkbox
                 bgRect.offsetMin = Vector2.zero;
                 bgRect.offsetMax = Vector2.zero;
                 var bgImage = bgGO.AddComponent<Image>();
@@ -126,18 +131,20 @@ namespace Setup.Steps
                 var labelGO = new GameObject("Label", typeof(RectTransform));
                 labelGO.transform.SetParent(checkboxGO.transform, false);
                 var labelRect = labelGO.GetComponent<RectTransform>();
-                labelRect.anchorMin = new Vector2(0.10f, 0f); // Adjusted from 0.25f to 0.18f
-                labelRect.anchorMax = new Vector2(1f, 1f);
-                labelRect.offsetMin = Vector2.zero;
-                labelRect.offsetMax = Vector2.zero;
+                // Label deutlich breiter und höher, Background bleibt kompakt
+                labelRect.anchorMin = new Vector2(0.13f, 0f); // direkt nach der kompakten Checkbox
+                labelRect.anchorMax = new Vector2(4f, 1f); // deutlich breiter als das Parent
+                labelRect.offsetMin = new Vector2(8, 4); // mehr Padding
+                labelRect.offsetMax = new Vector2(-8, -4);
+                labelRect.sizeDelta = new Vector2(0, 38); // explizit mehr Höhe
                 var label = labelGO.AddComponent<TextMeshProUGUI>();
                 label.text = voiceDescriptions[i];
-                label.fontSize = 6; // Kleinere Schrift für kompakte Darstellung
+                label.fontSize = 6; // größer
                 label.fontStyle = FontStyles.Normal;
                 label.alignment = TextAlignmentOptions.MidlineLeft;
                 label.color = Color.white;
-                label.textWrappingMode = TextWrappingModes.NoWrap;
-                label.overflowMode = TextOverflowModes.Ellipsis;
+                label.enableWordWrapping = true;
+                label.overflowMode = TextOverflowModes.Overflow;
 
                 // Toggle Component
                 var toggle = checkboxGO.AddComponent<Toggle>();
@@ -222,8 +229,8 @@ namespace Setup.Steps
             descriptionGO.layer = LayerMask.NameToLayer("UI");
             
             var descriptionRect = descriptionGO.GetComponent<RectTransform>();
-            descriptionRect.anchorMin = new Vector2(0f, 0.4f);
-            descriptionRect.anchorMax = new Vector2(1f, 0.6f);
+            descriptionRect.anchorMin = new Vector2(0f, 0.50f); // weiter oben
+            descriptionRect.anchorMax = new Vector2(1f, 0.75f);
             descriptionRect.offsetMin = Vector2.zero;
             descriptionRect.offsetMax = Vector2.zero;
             
@@ -248,9 +255,9 @@ namespace Setup.Steps
                 new Vector2(65f, -20.9f)     // RPM Button
             };
             Vector2[] imagePositions = { 
-                new Vector2(-65f, -65f),       // Robert_Raw_Image - aligned with button
-                new Vector2(0f, -65f),         // Leonard_Raw_Image - aligned with button
-                new Vector2(65f, -65f)         // RPM_Raw_Image - aligned with button
+                new Vector2(-65f, -40.9f),       // Robert_Raw_Image - neue Höhe
+                new Vector2(0f, -40.9f),         // Leonard_Raw_Image - neue Höhe
+                new Vector2(65f, -40.9f)         // RPM_Raw_Image - neue Höhe
             };
             
             for (int i = 0; i < avatarNames.Length; i++)
@@ -324,7 +331,7 @@ namespace Setup.Steps
                 
                 var buttonText = buttonTextGO.AddComponent<TMPro.TextMeshProUGUI>();
                 buttonText.text = avatarNames[i].Replace(" Button", ""); // "Robert", "Leonard", "RPM"
-                buttonText.fontSize = 10f;
+                buttonText.fontSize = 8f;
                 buttonText.alignment = TMPro.TextAlignmentOptions.Center;
                 buttonText.color = Color.black;
                 buttonText.raycastTarget = false; // Don't block button clicks
@@ -561,9 +568,9 @@ namespace Setup.Steps
             GameObject sliderGO = new GameObject("Volume Slider", typeof(RectTransform));
             sliderGO.transform.SetParent(panel.transform, false);
             var rect = sliderGO.GetComponent<RectTransform>();
-            // Verschoben nach rechts um Überlappung zu vermeiden
-            rect.anchorMin = new Vector2(0.46f, 0.13f); // Mehr Abstand zum Dropdown
-            rect.anchorMax = new Vector2(0.9f, 0.18f);
+            // Weiter nach oben verschoben
+            rect.anchorMin = new Vector2(0.46f, 0.21f); // Y erhöht
+            rect.anchorMax = new Vector2(0.9f, 0.23f);
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
@@ -611,7 +618,7 @@ namespace Setup.Steps
             var handleGO = new GameObject("Handle", typeof(RectTransform));
             handleGO.transform.SetParent(handleAreaGO.transform, false);
             var handleRect = handleGO.GetComponent<RectTransform>();
-            handleRect.sizeDelta = new Vector2(20, 40);
+            handleRect.sizeDelta = new Vector2(14, 18); // kleinerer Handle
             var handleImage = handleGO.AddComponent<Image>();
             handleImage.color = Color.white;
 
@@ -672,7 +679,7 @@ namespace Setup.Steps
             labelRect.offsetMax = Vector2.zero;
             var label = labelGO.AddComponent<TextMeshProUGUI>();
             label.text = "Enable VAD";
-            label.fontSize = 14;
+            label.fontSize = 8;
             label.alignment = TextAlignmentOptions.Left;
             label.color = Color.white;
 

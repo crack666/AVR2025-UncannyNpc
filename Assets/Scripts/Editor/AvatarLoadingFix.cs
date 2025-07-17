@@ -55,7 +55,7 @@ namespace Setup.Tools
             }
             
             // Configure the avatar
-            avatarInstance.transform.position = new Vector3(0.894f, 0.076f, -7.871f);
+            avatarInstance.transform.position = new Vector3(0.0f, 2.0f, -6.0f); // Avatar exakt vor dem Canvas (Canvas z = -7f, y = 2f)
             avatarInstance.transform.eulerAngles = new Vector3(0f, 180f, 0f);
             avatarInstance.transform.localScale = Vector3.one;
             avatarInstance.name = avatarId;

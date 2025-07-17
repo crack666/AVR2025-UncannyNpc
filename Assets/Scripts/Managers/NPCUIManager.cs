@@ -286,7 +286,7 @@ namespace Managers
                 var itemLabel = itemTemplate.Find("Item Label")?.GetComponent<TMP_Text>();
                 if (itemLabel != null)
                 {
-                    itemLabel.fontSize = Mathf.Clamp(itemLabel.fontSize * 0.9f, 9f, 12f); // Smaller font for compact layout
+                    itemLabel.fontSize = Mathf.Clamp(itemLabel.fontSize * 0.9f, 9f, 8f); // Smaller font for compact layout
                     itemLabel.color = Color.white;
                     // Ensure text doesn't wrap or overflow
                     itemLabel.textWrappingMode = TextWrappingModes.NoWrap;

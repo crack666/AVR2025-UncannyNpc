@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using UnityEngine.XR.Interaction.Toolkit.UI;
@@ -294,7 +295,7 @@ namespace Setup.Steps
 
             // --- Configure Canvas settings ---
             Canvas.renderMode = RenderMode.WorldSpace; // Always World Space for XR (canvasMode parameter ignored)
-            Canvas.transform.position = new Vector3(0, 2, 5); // Position in front of player
+            Canvas.transform.position = new Vector3(0, 2f, -7f); // Canvas etwas höher anzeigen
             Canvas.transform.rotation = Quaternion.identity;
             var rectTransform = Canvas.GetComponent<RectTransform>();
             if (rectTransform == null)
@@ -302,7 +303,7 @@ namespace Setup.Steps
                 log("❌ RectTransform missing on Canvas! Aborting setup.");
                 return;
             }
-            rectTransform.sizeDelta = new Vector2(960, 540);
+            rectTransform.sizeDelta = new Vector2(400, 225); // Canvas noch kleiner anzeigen
             Canvas.transform.localScale = Vector3.one * worldCanvasScale; // Use provided scale
             log($"✅ Configured Canvas: World Space mode, scale: {worldCanvasScale}, positioned in front of player.");
 
