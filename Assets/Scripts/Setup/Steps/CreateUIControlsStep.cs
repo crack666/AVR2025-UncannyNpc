@@ -248,9 +248,9 @@ namespace Setup.Steps
                 new Vector2(65f, -20.9f)     // RPM Button
             };
             Vector2[] imagePositions = { 
-                new Vector2(-32.5f, 0f),    // Robert_Raw_Image
-                new Vector2(0f, 0f),        // Leonard_Raw_Image
-                new Vector2(32.5f, 0f)      // RPM_Raw_Image
+                new Vector2(-65f, -65f),       // Robert_Raw_Image - aligned with button
+                new Vector2(0f, -65f),         // Leonard_Raw_Image - aligned with button
+                new Vector2(65f, -65f)         // RPM_Raw_Image - aligned with button
             };
             
             for (int i = 0; i < avatarNames.Length; i++)
