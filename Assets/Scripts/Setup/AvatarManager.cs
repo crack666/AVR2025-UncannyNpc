@@ -48,11 +48,11 @@ namespace Setup
         }
         
         /// <summary>
-        /// Check if all required avatars are loaded (Robert, Leonard, RPM)
+        /// Check if all required avatars are loaded (Robert, RPM_Male, RPM_Female)
         /// </summary>
         public bool AreAvatarsLoaded() 
         {
-            return loadedAvatars.Count >= 3; // Robert, Leonard, RPM
+            return loadedAvatars.Count >= 3; // Robert, RPM_Male, RPM_Female
         }
         
         /// <summary>

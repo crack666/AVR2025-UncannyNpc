@@ -265,10 +265,10 @@ namespace Setup.Steps
             
             // Create Avatar Buttons with original names and positioning
             // Standard-Avatare
-            List<string> avatarNames = new List<string> { "Robert Button", "Leonard Button", "RPM Button" };
+            List<string> avatarNames = new List<string> { "Robert Button", "RPM_Male Button", "RPM_Female Button" };
             List<string> avatarImageNames = new List<string> { "Robert_Raw_Image", "Leonard_Raw_Image", "RPM_Raw_Image" };
-            List<string> imageResourcePaths = new List<string> { "Robert", "Leonard", "RPM" };
-            List<string> avatarGameObjectNames = new List<string> { "Robert", "Leonard", "682cd77aff222706b8291007" };
+            List<string> imageResourcePaths = new List<string> { "Robert", "RPM_Male", "RPM_Female" };
+            List<string> avatarGameObjectNames = new List<string> { "Robert", "RPM_Male", "RPM_Female" };
             List<Vector2> buttonPositions = new List<Vector2> {
                 new Vector2(-65f, -20.9f),
                 new Vector2(0f, -20.9f),
@@ -559,13 +559,13 @@ namespace Setup.Steps
             switch (avatarIndex)
             {
                 case 0: // Robert Button
-                    UnityEngine.Debug.Log("[Avatar] Robert avatar selected - Robert activated, Leonard and RPM deactivated");
+                    UnityEngine.Debug.Log("[Avatar] Robert avatar selected - RPM_Male and RPM_Female deactivated");
                     break;
-                case 1: // Leonard Button
-                    UnityEngine.Debug.Log("[Avatar] Leonard avatar selected - Leonard activated, Robert and RPM deactivated");
+                case 1: // RPM_Male Button
+                    UnityEngine.Debug.Log("[Avatar] RPM_Male avatar selected - Robert and RPM_Female deactivated");
                     break;
-                case 2: // RPM Button
-                    UnityEngine.Debug.Log("[Avatar] RPM avatar selected - RPM activated, Robert and Leonard deactivated");
+                case 2: // RPM_Female Button
+                    UnityEngine.Debug.Log("[Avatar] RPM_Female avatar selected - Robert and RPM_Male deactivated");
                     break;
             }
         }

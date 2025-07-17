@@ -24,14 +24,14 @@ namespace Setup.Steps
                 index = 0
             },
             new AvatarConfig {
-                name = "Leonard", 
-                assetPath = "Assets/mixamo/Leonard",
-                fileExtension = ".fbx",
-                avatarType = AvatarType.Mixamo,
+                name = "RPM_Male", 
+                assetPath = "Assets/Ready Player Me/Avatars/6879563862addb2fa351a7e8/2fac66e374c947c41bc74325c6e3d934/6879563862addb2fa351a7e8",
+                fileExtension = ".prefab",
+                avatarType = AvatarType.ReadyPlayerMe,
                 index = 1
             },
             new AvatarConfig {
-                name = "682cd77aff222706b8291007",
+                name = "RPM_Female",
                 assetPath = "Assets/Ready Player Me/Avatars/682cd77aff222706b8291007/2fac66e374c947c41bc74325c6e3d934/682cd77aff222706b8291007",
                 fileExtension = ".prefab",
                 avatarType = AvatarType.ReadyPlayerMe,
@@ -283,8 +283,8 @@ namespace Setup.Steps
             
             #if UNITY_EDITOR
             // Find Select Avatar buttons
-            string[] buttonNames = { "Robert Button", "Leonard Button", "RPM Button" };
-            string[] avatarGameObjectNames = { "Robert", "Leonard", "682cd77aff222706b8291007" };
+            string[] buttonNames = { "Robert Button", "RPM_Male Button", "RPM_Female Button" };
+            string[] avatarGameObjectNames = { "Robert", "RPM_Male", "RPM_Female" };
             
             for (int i = 0; i < buttonNames.Length; i++)
             {
