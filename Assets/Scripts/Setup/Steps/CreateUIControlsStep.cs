@@ -106,7 +106,7 @@ namespace Setup.Steps
                 
                 // Engere vertikale Stapelung
                 float startY = availableHeight - (i * checkboxHeight);
-                float endY = startY - checkboxHeight + 0.01f; // Minimale Überlappung für weniger Abstand
+                float endY = startY - checkboxHeight - 0.05f; // Minimale Überlappung für weniger Abstand
                 checkboxRect.anchorMin = new Vector2(0f, endY);
                 checkboxRect.anchorMax = new Vector2(0.25f, startY); // kleinerer selektierbarer Bereich
                 checkboxRect.offsetMin = new Vector2(2, 1); // Weniger Padding oben/unten
