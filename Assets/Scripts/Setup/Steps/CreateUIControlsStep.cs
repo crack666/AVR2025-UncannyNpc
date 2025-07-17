@@ -195,6 +195,11 @@ namespace Setup.Steps
 
         private void CreateSelectAvatarUI()
         {
+            if (panel == null)
+            {
+                log("⚠️ Panel is null (possibly destroyed). Skipping UI rebuild.");
+                return;
+            }
             log("🎭 Creating Select Avatar UI...");
 
             // Remove old Select Avatar UI if it exists
