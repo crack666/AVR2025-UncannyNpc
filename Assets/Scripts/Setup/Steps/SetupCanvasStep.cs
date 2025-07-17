@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using UnityEngine.XR.Interaction.Toolkit.UI;
@@ -127,11 +128,13 @@ namespace Setup.Steps
                                     rt.localPosition = Vector3.zero;
                                     rt.localRotation = Quaternion.identity;
                                     rt.localScale = Vector3.one;
+                                    // Match size to Canvas for consistent appearance
+                                    var canvasRect = Canvas.GetComponent<RectTransform>();
+                                    rt.sizeDelta = canvasRect != null ? canvasRect.sizeDelta : new Vector2(960, 540);
                                     rt.anchorMin = Vector2.zero;
                                     rt.anchorMax = Vector2.one;
                                     rt.pivot = new Vector2(0.5f, 0.5f);
-                                    rt.sizeDelta = Vector2.zero;
-                                    log("✅ Configured RectTransform for template child");
+                                    log("✅ Configured RectTransform for template child (size matched to Canvas)");
                                 }
                                 
                                 // 7. Inject Canvas reference via PointableCanvas.InjectCanvas() (EXACTLY like Meta XR SDK Wizard!)
@@ -292,7 +295,7 @@ namespace Setup.Steps
 
             // --- Configure Canvas settings ---
             Canvas.renderMode = RenderMode.WorldSpace; // Always World Space for XR (canvasMode parameter ignored)
-            Canvas.transform.position = new Vector3(0, 2, 5); // Position in front of player
+            Canvas.transform.position = new Vector3(0, 2f, -7f); // Canvas etwas höher anzeigen
             Canvas.transform.rotation = Quaternion.identity;
             var rectTransform = Canvas.GetComponent<RectTransform>();
             if (rectTransform == null)
@@ -300,7 +303,7 @@ namespace Setup.Steps
                 log("❌ RectTransform missing on Canvas! Aborting setup.");
                 return;
             }
-            rectTransform.sizeDelta = new Vector2(1920, 1080);
+            rectTransform.sizeDelta = new Vector2(480, 225); // Canvas noch kleiner anzeigen
             Canvas.transform.localScale = Vector3.one * worldCanvasScale; // Use provided scale
             log($"✅ Configured Canvas: World Space mode, scale: {worldCanvasScale}, positioned in front of player.");
 

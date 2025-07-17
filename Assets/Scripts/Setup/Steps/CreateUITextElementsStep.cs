@@ -25,8 +25,8 @@ namespace Setup.Steps
             log("📄 Step 2.4: UI Text Element Creation");
 
             // MainDemo 15.unity positioning structure
-            StatusDisplay = CreateTextMeshPro("Status Display", "Status: Disconnected", 0.45f, 0.5f, 10);
-            ConversationDisplay = CreateTextMeshPro("Conversation Display", "OpenAI Realtime NPC Chat...", 0.15f, 0.4f, 10);
+            StatusDisplay = CreateTextMeshPro("Status Display", "Status: Disconnected", 0.45f, 0.5f, 8);
+            ConversationDisplay = CreateTextMeshPro("Conversation Display", "OpenAI Realtime NPC Chat...", 0.15f, 0.4f, 8);
 
             log("✅ All UI text elements created.");
         }

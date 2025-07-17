@@ -13,9 +13,10 @@ namespace Setup
         
         private Dictionary<string, GameObject> loadedAvatars = new Dictionary<string, GameObject>();
         public event System.Action<Dictionary<string, GameObject>> OnAvatarsLoaded;
+        public event System.Action<GameObject> OnCustomAvatarLoaded;
         
         // Shared avatar position for consistency between quick setup and LoadAvatarsStep
-        private static readonly Vector3 STANDARD_AVATAR_POSITION = new Vector3(1.9f, -1.9f, 1.13f);
+        private static readonly Vector3 STANDARD_AVATAR_POSITION = new Vector3(2f, 0f, -8f); // Vor dem Canvas und auf richtiger Höhe
         private static readonly Vector3 STANDARD_AVATAR_ROTATION = new Vector3(0f, 180f, 0f);
         
         /// <summary>
@@ -24,14 +25,17 @@ namespace Setup
         public void RegisterAvatar(string name, GameObject avatar) 
         {
             if (avatar == null) return;
-            
             loadedAvatars[name] = avatar;
             // Ensure consistent positioning
             avatar.transform.position = STANDARD_AVATAR_POSITION;
             avatar.transform.eulerAngles = STANDARD_AVATAR_ROTATION;
             avatar.transform.localScale = Vector3.one;
-            
             UnityEngine.Debug.Log($"[AvatarManager] Registered avatar: {name} at standard position {STANDARD_AVATAR_POSITION}");
+            if (name == "CustomAvatar")
+            {
+                OnCustomAvatarLoaded?.Invoke(avatar);
+                UnityEngine.Debug.Log("[AvatarManager] OnCustomAvatarLoaded event fired.");
+            }
         }
         
         /// <summary>

@@ -45,12 +45,14 @@ namespace Setup.Steps
             panelRect.anchorMin = new Vector2(0.5f, 0f);
             panelRect.anchorMax = new Vector2(0.5f, 0f);
             panelRect.pivot = new Vector2(0.5f, 0f);
-            panelRect.sizeDelta = panelSize; // 600x350 like MainDemo 15.unity
+            // Set panel size to match Canvas size for consistent scaling
+            var canvasRect = canvas.GetComponent<RectTransform>();
+            panelRect.sizeDelta = canvasRect != null ? canvasRect.sizeDelta : new Vector2(960, 540);
             panelRect.anchoredPosition = panelPosition; // (0, 0) for bottom center
-            
+            panelRect.localScale = Vector3.one;
             var panelImage = Panel.AddComponent<Image>();
             panelImage.color = new Color(0.1f, 0.1f, 0.1f, 0.8f);
-            log("✅ UI Panel created with MainDemo 15.unity structure.");
+            log("✅ UI Panel created and size matched to Canvas.");
 
             // --- Add NpcUiManager ---
             var uiManagerType = System.Type.GetType("Managers.NpcUiManager") ?? System.Type.GetType("NpcUiManager");
