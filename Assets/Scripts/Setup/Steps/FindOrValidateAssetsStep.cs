@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using Setup;
 
 namespace Setup.Steps
 {
@@ -15,11 +16,6 @@ namespace Setup.Steps
         public ScriptableObject OpenAISettings => openAISettings;
         public GameObject TargetAvatar => targetAvatar;
 
-        // Default transform values for ReadyPlayerMe avatar
-        private static readonly Vector3 DefaultAvatarPosition = new Vector3(0.894f, 0.076f, -7.871f);
-        private static readonly Vector3 DefaultAvatarRotation = new Vector3(0f, 180f, 0f);
-        private static readonly Vector3 DefaultAvatarScale = Vector3.one;
-
         public FindOrValidateAssetsStep(ScriptableObject openAISettings, GameObject targetAvatar, System.Action<string> log)
         {
             this.openAISettings = openAISettings;
@@ -31,10 +27,16 @@ namespace Setup.Steps
         {
             if (targetAvatar != null)
             {
-                targetAvatar.transform.position = DefaultAvatarPosition;
-                targetAvatar.transform.eulerAngles = DefaultAvatarRotation;
-                targetAvatar.transform.localScale = DefaultAvatarScale;
-                log($"ℹ️ Set default transform for avatar '{targetAvatar.name}' (pos: {DefaultAvatarPosition}, rot: {DefaultAvatarRotation}, scale: {DefaultAvatarScale})");
+                // Use AvatarManager's standard position for consistency
+                Vector3 standardPos = AvatarManager.GetStandardAvatarPosition();
+                targetAvatar.transform.position = standardPos;
+                targetAvatar.transform.eulerAngles = AvatarManager.GetStandardAvatarRotation();
+                targetAvatar.transform.localScale = Vector3.one;
+                
+                // Register with AvatarManager for tracking
+                AvatarManager.Instance.RegisterAvatar(targetAvatar.name, targetAvatar);
+                
+                log($"ℹ️ Set standard transform for avatar '{targetAvatar.name}' at {standardPos}");
             }
         }
 

@@ -43,6 +43,9 @@ namespace Setup.Steps
             var inputFieldsStep = new CreateUIInputFieldsStep(log, panel);
             inputFieldsStep.Execute();
 
+            var loadAvatarsStep = new LoadAvatarsStep(log, -1); // Default keiner
+            loadAvatarsStep.Execute();
+
             var controlsStep = new CreateUIControlsStep(log, panel);
             controlsStep.Execute();
 

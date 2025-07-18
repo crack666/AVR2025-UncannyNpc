@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
+using Setup;
 
 namespace Setup.Steps
 {
@@ -21,6 +22,14 @@ namespace Setup.Steps
         {
             this.log = log;
             this.panel = panel;
+            // Subscribe to custom avatar loaded event
+            Setup.AvatarManager.Instance.OnCustomAvatarLoaded += OnCustomAvatarLoaded;
+        }
+
+        private void OnCustomAvatarLoaded(GameObject customAvatar)
+        {
+            log("🔄 Custom Avatar loaded, refreshing Select Avatar UI...");
+            CreateSelectAvatarUI();
         }
 
         public void Execute()
@@ -28,6 +37,7 @@ namespace Setup.Steps
             log("🎛️ Step 2.6: UI Control Creation");
 
             CreateVoiceCheckboxes();
+            CreateSelectAvatarUI();
             CreateVolumeSlider();
             CreateEnableVADToggle();
             
@@ -39,35 +49,48 @@ namespace Setup.Steps
 
         private void CreateVoiceCheckboxes()
         {
-            // Voice Selection Group Container
+            // Voice Selection Group Container - positioned on the right side of canvas, moved higher
             GameObject voiceGroupGO = new GameObject("Voice Selection Group", typeof(RectTransform));
             voiceGroupGO.transform.SetParent(panel.transform, false);
             var groupRect = voiceGroupGO.GetComponent<RectTransform>();
-            // Gleiche Position wie das alte Dropdown, aber etwas größer für alle Checkboxes
-            groupRect.anchorMin = new Vector2(0.1f, 0.05f);
-            groupRect.anchorMax = new Vector2(0.42f, 0.18f);
-            groupRect.offsetMin = Vector2.zero;
-            groupRect.offsetMax = Vector2.zero;
+            // Position on right side: from 55% to 95% horizontally, moved up higher from 0.15f to 0.25f
+        
+            // Set absolute position and size: left -240.6, top 34.3, right 240.6, bottom -34.3, pos z 0
+            groupRect.anchorMin = new Vector2(0.5f, 0.5f);
+            groupRect.anchorMax = new Vector2(0.5f, 0.5f);
+            groupRect.pivot = new Vector2(0.5f, 0.5f);
+            groupRect.anchoredPosition = Vector2.zero;
+            groupRect.sizeDelta = new Vector2(240.6f + 240.6f, 34.3f + 34.3f); // width: 481.2, height: 68.6
+            groupRect.localPosition = new Vector3(50f, 150f, 0f); // pos z 0
 
             // Title Label
             var titleGO = new GameObject("Voice Title", typeof(RectTransform));
             titleGO.transform.SetParent(voiceGroupGO.transform, false);
             var titleRect = titleGO.GetComponent<RectTransform>();
-            titleRect.anchorMin = new Vector2(0f, 0.85f);
+            titleRect.anchorMin = new Vector2(0f, 0.88f);
             titleRect.anchorMax = new Vector2(1f, 1f);
             titleRect.offsetMin = Vector2.zero;
             titleRect.offsetMax = Vector2.zero;
             var titleLabel = titleGO.AddComponent<TextMeshProUGUI>();
-            titleLabel.text = "Voice:";
-            titleLabel.fontSize = 10;
+            titleLabel.text = "Voice Selection";
+            titleLabel.fontSize = 8; // Verkleinerte Schrift
             titleLabel.fontStyle = FontStyles.Bold;
             titleLabel.alignment = TextAlignmentOptions.Left;
             titleLabel.color = Color.white;
 
-            // Get voice options
-            var voiceDescriptions = OpenAIVoiceExtensions.GetAllVoiceDescriptions();
-            var voiceCount = voiceDescriptions.Length;
-            float checkboxHeight = 0.8f / voiceCount; // Verteilung über verfügbare Höhe
+            // Get voice options with better descriptions
+            var voiceCount = OpenAIVoiceExtensions.GetVoiceCount();
+            var voiceDescriptions = new string[voiceCount];
+            
+            // Use the existing GetDescription method for better descriptions
+            for (int i = 0; i < voiceCount; i++)
+            {
+                var voice = OpenAIVoiceExtensions.FromIndex(i);
+                voiceDescriptions[i] = voice.GetDescription();
+            }
+            
+            float availableHeight = 0.80f; // Weniger Platz für kleinere Abstände
+            float checkboxHeight = availableHeight / (voiceCount + 0.5f); // Etwas enger gestapelt
 
             // Create ToggleGroup for exclusive selection
             var toggleGroup = voiceGroupGO.AddComponent<ToggleGroup>();
@@ -81,26 +104,27 @@ namespace Setup.Steps
                 checkboxGO.transform.SetParent(voiceGroupGO.transform, false);
                 var checkboxRect = checkboxGO.GetComponent<RectTransform>();
                 
-                // Position vertically based on index (stack from top to bottom)
-                float startY = 0.8f - (i * checkboxHeight);
-                float endY = startY - checkboxHeight;
+                // Engere vertikale Stapelung
+                float startY = availableHeight - (i * checkboxHeight);
+                float endY = startY - checkboxHeight - 0.05f; // Minimale Überlappung für weniger Abstand
                 checkboxRect.anchorMin = new Vector2(0f, endY);
-                checkboxRect.anchorMax = new Vector2(1f, startY);
-                checkboxRect.offsetMin = new Vector2(2, 1); // Small padding
+                checkboxRect.anchorMax = new Vector2(0.25f, startY); // kleinerer selektierbarer Bereich
+                checkboxRect.offsetMin = new Vector2(2, 1); // Weniger Padding oben/unten
                 checkboxRect.offsetMax = new Vector2(-2, -1);
 
-                // Background
+                // Background - smaller checkbox area
                 var bgGO = new GameObject("Background", typeof(RectTransform));
                 bgGO.transform.SetParent(checkboxGO.transform, false);
                 var bgRect = bgGO.GetComponent<RectTransform>();
+                // Background wieder kompakt wie ursprünglich
                 bgRect.anchorMin = new Vector2(0, 0.2f);
-                bgRect.anchorMax = new Vector2(0.2f, 0.8f);
+                bgRect.anchorMax = new Vector2(0.11f, 0.9f); // kompakte Checkbox
                 bgRect.offsetMin = Vector2.zero;
                 bgRect.offsetMax = Vector2.zero;
                 var bgImage = bgGO.AddComponent<Image>();
                 bgImage.color = new Color(0.3f, 0.3f, 0.3f, 1f);
 
-                // Checkmark
+                // Checkmark - Using image from Assets/Images/checkmark.png
                 var checkmarkGO = new GameObject("Checkmark", typeof(RectTransform));
                 checkmarkGO.transform.SetParent(bgGO.transform, false);
                 var checkmarkRect = checkmarkGO.GetComponent<RectTransform>();
@@ -109,24 +133,89 @@ namespace Setup.Steps
                 checkmarkRect.offsetMin = Vector2.zero;
                 checkmarkRect.offsetMax = Vector2.zero;
                 var checkmarkImage = checkmarkGO.AddComponent<Image>();
-                checkmarkImage.color = new Color(0f, 0.8f, 0f, 1f); // Bright green
+                
+                // Load checkmark image from Assets/Images/checkmark.png
+                Sprite checkmarkSprite = null;
+                
+                #if UNITY_EDITOR
+                // First try to load as Sprite, then as Texture2D
+                string[] possiblePaths = {
+                    "Assets/Images/checkmark.png",
+                    "Assets/Images/checkmark.PNG",
+                    "Assets/Images/Checkmark.png",
+                    "Assets/Images/Checkmark.PNG"
+                };
+                
+                foreach (string path in possiblePaths)
+                {
+                    // Try loading as Sprite first
+                    checkmarkSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(path);
+                    if (checkmarkSprite != null)
+                    {
+                        UnityEngine.Debug.Log($"[UI] Found checkmark sprite at: {path}");
+                        break;
+                    }
+                    
+                    // If sprite loading fails, try loading as Texture2D and convert
+                    var texture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                    if (texture != null)
+                    {
+                        checkmarkSprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                        UnityEngine.Debug.Log($"[UI] Found checkmark texture at: {path}, converted to sprite");
+                        break;
+                    }
+                }
+                #endif
+                
+                // Fallback: Try Resources.Load
+                if (checkmarkSprite == null)
+                {
+                    var texture = Resources.Load<Texture2D>("Images/checkmark");
+                    if (texture == null)
+                    {
+                        texture = Resources.Load<Texture2D>("checkmark");
+                    }
+                    if (texture != null)
+                    {
+                        checkmarkSprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                        UnityEngine.Debug.Log($"[UI] Created checkmark sprite from Resources texture");
+                    }
+                }
+                
+                if (checkmarkSprite != null)
+                {
+                    checkmarkImage.sprite = checkmarkSprite;
+                    checkmarkImage.color = Color.white; // White tint for the image
+                    checkmarkImage.type = Image.Type.Simple; // Ensure it's set to Simple type
+                    checkmarkImage.preserveAspect = true; // Preserve aspect ratio
+                    UnityEngine.Debug.Log($"[UI] Successfully loaded and applied checkmark sprite for voice checkbox {i}");
+                }
+                else
+                {
+                    // Fallback to colored rect if image not found
+                    checkmarkImage.color = new Color(0f, 0.8f, 0f, 1f); // Bright green fallback
+                    checkmarkImage.sprite = null; // Ensure no sprite is set for fallback
+                    UnityEngine.Debug.LogWarning("[UI] Checkmark image not found at Assets/Images/checkmark.png, using fallback color");
+                }
 
-                // Label
+                // Label - adjusted for smaller checkbox
                 var labelGO = new GameObject("Label", typeof(RectTransform));
                 labelGO.transform.SetParent(checkboxGO.transform, false);
                 var labelRect = labelGO.GetComponent<RectTransform>();
-                labelRect.anchorMin = new Vector2(0.25f, 0f);
-                labelRect.anchorMax = new Vector2(1f, 1f);
-                labelRect.offsetMin = Vector2.zero;
-                labelRect.offsetMax = Vector2.zero;
+                // Label deutlich breiter und höher, Background bleibt kompakt
+                labelRect.anchorMin = new Vector2(0.13f, 0f); // direkt nach der kompakten Checkbox
+                labelRect.anchorMax = new Vector2(4f, 1f); // deutlich breiter als das Parent
+                labelRect.offsetMin = new Vector2(8, 4); // mehr Padding
+                labelRect.offsetMax = new Vector2(-8, -4);
+                labelRect.sizeDelta = new Vector2(0, 38); // explizit mehr Höhe
                 var label = labelGO.AddComponent<TextMeshProUGUI>();
                 label.text = voiceDescriptions[i];
-                label.fontSize = 8; // Kleine Schrift für kompakte Darstellung
+                label.fontSize = 6; // größer
                 label.fontStyle = FontStyles.Normal;
                 label.alignment = TextAlignmentOptions.MidlineLeft;
                 label.color = Color.white;
-                label.textWrappingMode = TextWrappingModes.NoWrap;
-                label.overflowMode = TextOverflowModes.Ellipsis;
+                label.textWrappingMode = TextWrappingModes.Normal;
+                label.overflowMode = TextOverflowModes.Overflow;
 
                 // Toggle Component
                 var toggle = checkboxGO.AddComponent<Toggle>();
@@ -167,14 +256,423 @@ namespace Setup.Steps
             log("✅ Created Voice Checkboxes (replaced dropdown).");
         }
 
+        private void CreateSelectAvatarUI()
+        {
+            if (panel == null)
+            {
+                log("⚠️ Panel is null (possibly destroyed). Skipping UI rebuild.");
+                return;
+            }
+            log("🎭 Creating Select Avatar UI...");
+
+            // Remove old Select Avatar UI if it exists
+            Transform old = panel.transform.Find("Select Avatar");
+            if (old != null)
+            {
+                GameObject.DestroyImmediate(old.gameObject);
+            }
+
+            // Create the main Select Avatar container
+            GameObject selectAvatarGO = new GameObject("Select Avatar", typeof(RectTransform));
+            selectAvatarGO.transform.SetParent(panel.transform, false);
+            selectAvatarGO.layer = LayerMask.NameToLayer("UI");
+            
+            var selectAvatarRect = selectAvatarGO.GetComponent<RectTransform>();
+            // Position like MainDemo 15.unity: right side with proper anchors
+            selectAvatarRect.anchorMin = new Vector2(0.52f, 0.6f);
+            selectAvatarRect.anchorMax = new Vector2(0.95f, 0.95f);
+            selectAvatarRect.offsetMin = Vector2.zero;
+            selectAvatarRect.offsetMax = Vector2.zero;
+            
+            // Create Buttons container
+            GameObject buttonsGO = new GameObject("Buttons", typeof(RectTransform));
+            buttonsGO.transform.SetParent(selectAvatarGO.transform, false);
+            buttonsGO.layer = LayerMask.NameToLayer("UI");
+            
+            var buttonsRect = buttonsGO.GetComponent<RectTransform>();
+            buttonsRect.anchorMin = new Vector2(0f, 0f);
+            buttonsRect.anchorMax = new Vector2(1f, 0.4f);
+            buttonsRect.offsetMin = Vector2.zero;
+            buttonsRect.offsetMax = Vector2.zero;
+            
+            // Create Images container
+            GameObject imagesGO = new GameObject("Images", typeof(RectTransform));
+            imagesGO.transform.SetParent(selectAvatarGO.transform, false);
+            imagesGO.layer = LayerMask.NameToLayer("UI");
+            
+            var imagesRect = imagesGO.GetComponent<RectTransform>();
+            imagesRect.anchorMin = new Vector2(0f, 0.6f);
+            imagesRect.anchorMax = new Vector2(1f, 1f);
+            imagesRect.offsetMin = Vector2.zero;
+            imagesRect.offsetMax = Vector2.zero;
+            
+            // Create Description Text
+            GameObject descriptionGO = new GameObject("Description_Text (TMP)", typeof(RectTransform));
+            descriptionGO.transform.SetParent(selectAvatarGO.transform, false);
+            descriptionGO.layer = LayerMask.NameToLayer("UI");
+            
+            var descriptionRect = descriptionGO.GetComponent<RectTransform>();
+            descriptionRect.anchorMin = new Vector2(0f, 0.50f); // weiter oben
+            descriptionRect.anchorMax = new Vector2(1f, 0.75f);
+            descriptionRect.offsetMin = Vector2.zero;
+            descriptionRect.offsetMax = Vector2.zero;
+            
+            // Add TextMeshProUGUI component
+            var descriptionText = descriptionGO.AddComponent<TMPro.TextMeshProUGUI>();
+            descriptionText.text = "Select Avatar";
+            descriptionText.fontSize = 8f; // Verkleinert für kompaktes Design
+            descriptionText.alignment = TMPro.TextAlignmentOptions.Center;
+            descriptionText.color = Color.white;
+            descriptionText.material = null;
+            descriptionText.raycastTarget = true;
+            
+            // Create Avatar Buttons with original names and positioning
+            // Standard-Avatare
+            List<string> avatarNames = new List<string> { "Robert Button", "RPM_Male Button", "RPM_Female Button" };
+            List<string> avatarImageNames = new List<string> { "Robert_Raw_Image", "Leonard_Raw_Image", "RPM_Raw_Image" };
+            List<string> imageResourcePaths = new List<string> { "Robert", "RPM_Male", "RPM_Female" };
+            List<string> avatarGameObjectNames = new List<string> { "Robert", "RPM_Male", "RPM_Female" };
+            List<Vector2> buttonPositions = new List<Vector2> {
+                new Vector2(-65f, -20.9f),
+                new Vector2(0f, -20.9f),
+                new Vector2(65f, -20.9f)
+            };
+            List<Vector2> imagePositions = new List<Vector2> {
+                new Vector2(-65f, -40.9f),
+                new Vector2(0f, -40.9f),
+                new Vector2(65f, -40.9f)
+            };
+
+            // Prüfe, ob ein Custom Avatar geladen ist
+            var customAvatarGO = AvatarManager.Instance.GetAvatar("CustomAvatar");
+            if (customAvatarGO != null)
+            {
+                // Füge Custom Avatar als vierten Button in die bestehende Reihe ein
+                avatarNames.Add("Custom Avatar");
+                avatarImageNames.Add("Custom_Raw_Image");
+                imageResourcePaths.Add("Custom"); // Verwende Custom.png als Bild
+                avatarGameObjectNames.Add("CustomAvatar");
+                // Platziere alle vier Buttons gleichmäßig nebeneinander
+                float spacing = 65f;
+                buttonPositions.Clear();
+                imagePositions.Clear();
+                int count = avatarNames.Count;
+                float startX = -spacing * (count - 1) / 2f;
+                for (int i = 0; i < count; i++)
+                {
+                    buttonPositions.Add(new Vector2(startX + i * spacing, -20.9f));
+                    imagePositions.Add(new Vector2(startX + i * spacing, -40.9f));
+                }
+            }
+
+            for (int i = 0; i < avatarNames.Count; i++)
+            {
+                GameObject buttonGO = new GameObject(avatarNames[i], typeof(RectTransform));
+                buttonGO.transform.SetParent(buttonsGO.transform, false);
+                buttonGO.layer = LayerMask.NameToLayer("UI");
+
+                var buttonRect = buttonGO.GetComponent<RectTransform>();
+                buttonRect.anchorMin = new Vector2(0.5f, 0.5f);
+                buttonRect.anchorMax = new Vector2(0.5f, 0.5f);
+                buttonRect.sizeDelta = new Vector2(52.74f, 11.21f);
+                buttonRect.anchoredPosition = buttonPositions[i];
+
+                var buttonImage = buttonGO.AddComponent<Image>();
+                buttonImage.color = Color.white;
+                buttonImage.raycastTarget = true;
+                buttonImage.maskable = true;
+                buttonImage.sprite = Resources.GetBuiltinResource<Sprite>("UI/Skin/Knob.psd");
+                buttonImage.type = Image.Type.Sliced;
+                buttonImage.fillCenter = true;
+
+                var button = buttonGO.AddComponent<Button>();
+                button.targetGraphic = buttonImage;
+                button.interactable = true;
+
+                var colors = new ColorBlock();
+                colors.normalColor = Color.white;
+                colors.highlightedColor = new Color(0.9607843f, 0.9607843f, 0.9607843f, 1f);
+                colors.pressedColor = new Color(0.78431374f, 0.78431374f, 0.78431374f, 1f);
+                colors.selectedColor = new Color(0.9607843f, 0.9607843f, 0.9607843f, 1f);
+                colors.disabledColor = new Color(0.78431374f, 0.78431374f, 0.78431374f, 0.5019608f);
+                colors.colorMultiplier = 1f;
+                colors.fadeDuration = 0.1f;
+                button.colors = colors;
+
+                button.transition = Selectable.Transition.ColorTint;
+
+                int avatarIndex = i;
+                button.onClick.RemoveAllListeners();
+                button.onClick.AddListener(() => {
+                    // Alle Avatare (inkl. Custom) durchgehen und nur den gewählten aktivieren
+                    for (int j = 0; j < avatarGameObjectNames.Count; j++)
+                    {
+                        var go = AvatarManager.Instance.GetAvatar(avatarGameObjectNames[j]);
+                        if (go != null)
+                            go.SetActive(j == avatarIndex);
+                    }
+                    // UI-Feedback
+                    if (descriptionText != null)
+                        descriptionText.text = $"{avatarNames[avatarIndex].Replace(" Button", "")} Selected";
+                    // Logging
+                    UnityEngine.Debug.Log($"[Avatar] {avatarNames[avatarIndex]} selected - only this avatar is active");
+                });
+
+                // Persistent Calls für Editor (optional, wie bisher)
+                SetupPersistentCallsWhenReady(button, avatarIndex, avatarNames[i], avatarGameObjectNames.ToArray());
+
+                GameObject buttonTextGO = new GameObject("Text", typeof(RectTransform));
+                buttonTextGO.transform.SetParent(buttonGO.transform, false);
+                buttonTextGO.layer = LayerMask.NameToLayer("UI");
+
+                var buttonTextRect = buttonTextGO.GetComponent<RectTransform>();
+                buttonTextRect.anchorMin = Vector2.zero;
+                buttonTextRect.anchorMax = Vector2.one;
+                buttonTextRect.sizeDelta = Vector2.zero;
+                buttonTextRect.anchoredPosition = Vector2.zero;
+
+                var buttonText = buttonTextGO.AddComponent<TMPro.TextMeshProUGUI>();
+                buttonText.text = avatarNames[i].Replace(" Button", "");
+                buttonText.fontSize = 8f;
+                buttonText.alignment = TMPro.TextAlignmentOptions.Center;
+                buttonText.color = Color.black;
+                buttonText.raycastTarget = false;
+
+                UnityEngine.Debug.Log($"[UI] Created avatar button: {avatarNames[i]} at position {buttonPositions[i]}");
+            }
+            
+            // Create Raw Images with actual textures from Assets/Images
+            for (int i = 0; i < avatarImageNames.Count; i++)
+            {
+                GameObject imageGO = new GameObject(avatarImageNames[i], typeof(RectTransform));
+                imageGO.transform.SetParent(imagesGO.transform, false);
+                imageGO.layer = LayerMask.NameToLayer("UI");
+                
+                var imageRect = imageGO.GetComponent<RectTransform>();
+                imageRect.anchorMin = new Vector2(0.5f, 0.5f);
+                imageRect.anchorMax = new Vector2(0.5f, 0.5f);
+                imageRect.sizeDelta = new Vector2(100f, 100f);
+                imageRect.anchoredPosition = imagePositions[i];
+                imageRect.localScale = new Vector3(0.37f, 0.37f, 0.37f); // Original scale
+                
+                // Add RawImage component (matching original)
+                var rawImage = imageGO.AddComponent<UnityEngine.UI.RawImage>();
+                rawImage.color = Color.white;
+                rawImage.raycastTarget = true;
+                rawImage.maskable = true;
+                
+                // Load the actual texture from Assets/Images
+                Texture2D texture = null;
+                
+                #if UNITY_EDITOR
+                // Try to load from Assets/Images using AssetDatabase (Editor only)
+                string[] possiblePaths = {
+                    $"Assets/Images/{imageResourcePaths[i]}.png",
+                    $"Assets/Images/{imageResourcePaths[i]}.PNG",
+                    $"Assets/Images/{imageResourcePaths[i]}.jpg",
+                    $"Assets/Images/{imageResourcePaths[i]}.JPG"
+                };
+                
+                foreach (string path in possiblePaths)
+                {
+                    texture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                    if (texture != null)
+                    {
+                        UnityEngine.Debug.Log($"[UI] Loaded texture for {avatarImageNames[i]} from: {path}");
+                        break;
+                    }
+                }
+                #endif
+                
+                // Fallback: Try Resources.Load
+                if (texture == null)
+                {
+                    texture = Resources.Load<Texture2D>($"Images/{imageResourcePaths[i]}");
+                    if (texture == null)
+                    {
+                        texture = Resources.Load<Texture2D>(imageResourcePaths[i]);
+                    }
+                }
+                
+                if (texture != null)
+                {
+                    rawImage.texture = texture;
+                    UnityEngine.Debug.Log($"[UI] Successfully loaded texture for {avatarImageNames[i]}: {imageResourcePaths[i]}");
+                }
+                else
+                {
+                    UnityEngine.Debug.LogWarning($"[UI] Could not load texture for {avatarImageNames[i]}: {imageResourcePaths[i]}");
+                    // Create fallback colored texture
+                    texture = new Texture2D(64, 64);
+                    Color[] colors = new Color[64 * 64];
+                    Color avatarColor = i == 0 ? Color.red : i == 1 ? Color.green : Color.blue;
+                    for (int j = 0; j < colors.Length; j++)
+                    {
+                        colors[j] = avatarColor;
+                    }
+                    texture.SetPixels(colors);
+                    texture.Apply();
+                    rawImage.texture = texture;
+                }
+                
+                UnityEngine.Debug.Log($"[UI] Created avatar image: {avatarImageNames[i]} at position {imagePositions[i]}");
+            }
+            
+            log("✅ Created Select Avatar UI with proper button and image configuration.");
+        }
+        
+        private void SetupPersistentCallsWhenReady(UnityEngine.UI.Button button, int avatarIndex, string avatarName, string[] avatarGameObjectNames)
+        {
+            if (AvatarManager.Instance.AreAvatarsLoaded())
+            {
+                // Avatars already loaded, setup immediately
+                CreatePersistentCalls(button, avatarIndex, avatarName, avatarGameObjectNames);
+            }
+            else
+            {
+                // Wait for avatars to be loaded
+                AvatarManager.Instance.OnAvatarsLoaded += (avatars) => {
+                    CreatePersistentCalls(button, avatarIndex, avatarName, avatarGameObjectNames);
+                };
+            }
+        }
+
+        private void CreatePersistentCalls(UnityEngine.UI.Button button, int avatarIndex, string avatarName, string[] avatarGameObjectNames)
+        {
+            #if UNITY_EDITOR
+            try 
+            {
+                var serializedObject = new UnityEditor.SerializedObject(button);
+                var onClickProperty = serializedObject.FindProperty("m_OnClick.m_PersistentCalls.m_Calls");
+                
+                onClickProperty.arraySize = 0;
+                
+                for (int j = 0; j < avatarGameObjectNames.Length; j++)
+                {
+                    // Use AvatarManager to get avatar reference
+                    GameObject targetObj = AvatarManager.Instance.GetAvatar(avatarGameObjectNames[j]);
+                    if (targetObj != null)
+                    {
+                        onClickProperty.arraySize++;
+                        var callProperty = onClickProperty.GetArrayElementAtIndex(onClickProperty.arraySize - 1);
+                        
+                        callProperty.FindPropertyRelative("m_Target").objectReferenceValue = targetObj;
+                        callProperty.FindPropertyRelative("m_TargetAssemblyTypeName").stringValue = "UnityEngine.GameObject, UnityEngine";
+                        callProperty.FindPropertyRelative("m_MethodName").stringValue = "SetActive";
+                        callProperty.FindPropertyRelative("m_Mode").intValue = 6; // Bool mode
+                        callProperty.FindPropertyRelative("m_Arguments.m_BoolArgument").boolValue = (j == avatarIndex);
+                        callProperty.FindPropertyRelative("m_CallState").intValue = 2; // RuntimeOnly
+                        
+                        UnityEngine.Debug.Log($"[UI] Added persistent call for {avatarName} -> {avatarGameObjectNames[j]} (SetActive: {j == avatarIndex})");
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.LogError($"[UI] Avatar GameObject not found: {avatarGameObjectNames[j]}");
+                    }
+                }
+                
+                serializedObject.ApplyModifiedProperties();
+                UnityEngine.Debug.Log($"[UI] Successfully created {onClickProperty.arraySize} persistent calls for button: {avatarName}");
+            }
+            catch (System.Exception ex)
+            {
+                UnityEngine.Debug.LogError($"[UI] Failed to create persistent calls for {avatarName}: {ex.Message}");
+            }
+            #endif
+        }
+        
+        private void OnAvatarButtonClicked(int avatarIndex, string avatarName, string[] avatarGameObjectNames, TMPro.TextMeshProUGUI descriptionText)
+        {
+            UnityEngine.Debug.Log($"[Avatar] Button clicked: {avatarName} (Index: {avatarIndex})");
+            
+            // Update description text
+            if (descriptionText != null)
+            {
+                descriptionText.text = $"{avatarName.Replace(" Button", "")} Selected";
+            }
+            
+            // Use AvatarManager to get avatar references
+            for (int i = 0; i < avatarGameObjectNames.Length; i++)
+            {
+                string avatarObjName = avatarGameObjectNames[i];
+                GameObject avatarObj = AvatarManager.Instance.GetAvatar(avatarObjName);
+                
+                if (avatarObj != null)
+                {
+                    if (i == avatarIndex)
+                    {
+                        // Activate the selected avatar
+                        avatarObj.SetActive(true);
+                        UnityEngine.Debug.Log($"[Avatar] Activated: {avatarObjName}");
+                    }
+                    else
+                    {
+                        // Deactivate the other avatars
+                        avatarObj.SetActive(false);
+                        UnityEngine.Debug.Log($"[Avatar] Deactivated: {avatarObjName}");
+                    }
+                }
+                else
+                {
+                    UnityEngine.Debug.LogWarning($"[Avatar] Could not find avatar GameObject: {avatarObjName}");
+                }
+            }
+            
+            // Log the selection
+            switch (avatarIndex)
+            {
+                case 0: // Robert Button
+                    UnityEngine.Debug.Log("[Avatar] Robert avatar selected - RPM_Male and RPM_Female deactivated");
+                    break;
+                case 1: // RPM_Male Button
+                    UnityEngine.Debug.Log("[Avatar] RPM_Male avatar selected - Robert and RPM_Female deactivated");
+                    break;
+                case 2: // RPM_Female Button
+                    UnityEngine.Debug.Log("[Avatar] RPM_Female avatar selected - Robert and RPM_Male deactivated");
+                    break;
+            }
+        }
+        
+        private void OnAvatarSelected(int avatarIndex, string avatarName, TMPro.TextMeshProUGUI descriptionText, GameObject buttonsContainer, Color[] avatarColors)
+        {
+            UnityEngine.Debug.Log($"[Avatar] Selected: {avatarName}");
+            
+            // Update description text
+            if (descriptionText != null)
+            {
+                descriptionText.text = $"{avatarName} Selected";
+            }
+            
+            // Update button colors to show selection
+            for (int i = 0; i < buttonsContainer.transform.childCount; i++)
+            {
+                var childButton = buttonsContainer.transform.GetChild(i).GetComponent<Button>();
+                if (childButton != null)
+                {
+                    var buttonImage = childButton.GetComponent<Image>();
+                    if (i == avatarIndex)
+                    {
+                        buttonImage.color = avatarColors[i]; // Selected color
+                    }
+                    else
+                    {
+                        buttonImage.color = new Color(0.7f, 0.7f, 0.7f, 1f); // Default color
+                    }
+                }
+            }
+            
+            // TODO: Add your avatar selection logic here
+            // For example: NPCManager.Instance.ChangeAvatar(avatarIndex);
+        }
+
         private void CreateVolumeSlider()
         {
             GameObject sliderGO = new GameObject("Volume Slider", typeof(RectTransform));
             sliderGO.transform.SetParent(panel.transform, false);
             var rect = sliderGO.GetComponent<RectTransform>();
-            // Verschoben nach rechts um Überlappung zu vermeiden
-            rect.anchorMin = new Vector2(0.46f, 0.13f); // Mehr Abstand zum Dropdown
-            rect.anchorMax = new Vector2(0.9f, 0.18f);
+            // Weiter nach oben verschoben
+            rect.anchorMin = new Vector2(0.46f, 0.21f); // Y erhöht
+            rect.anchorMax = new Vector2(0.9f, 0.23f);
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
@@ -222,7 +720,7 @@ namespace Setup.Steps
             var handleGO = new GameObject("Handle", typeof(RectTransform));
             handleGO.transform.SetParent(handleAreaGO.transform, false);
             var handleRect = handleGO.GetComponent<RectTransform>();
-            handleRect.sizeDelta = new Vector2(20, 40);
+            handleRect.sizeDelta = new Vector2(14, 18); // kleinerer Handle
             var handleImage = handleGO.AddComponent<Image>();
             handleImage.color = Color.white;
 
@@ -250,18 +748,18 @@ namespace Setup.Steps
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
-            // Background
+            // Background - smaller checkbox to match voice checkboxes
             var bgGO = new GameObject("Background", typeof(RectTransform));
             bgGO.transform.SetParent(toggleGO.transform, false);
             var bgRect = bgGO.GetComponent<RectTransform>();
-            bgRect.anchorMin = Vector2.zero;
-            bgRect.anchorMax = Vector2.one;
+            bgRect.anchorMin = new Vector2(0, 0.2f);
+            bgRect.anchorMax = new Vector2(0.10f, 0.8f); // Reduced to match voice checkboxes (0.10f)
             bgRect.offsetMin = Vector2.zero;
             bgRect.offsetMax = Vector2.zero;
             var bgImage = bgGO.AddComponent<Image>();
             bgImage.color = new Color(0.2f, 0.2f, 0.2f, 1f); // Grauer Background statt grün
 
-            // Checkmark - Einfacheres Design ohne dauerhaft sichtbares Inner Check
+            // Checkmark - Using image from Assets/Images/checkmark.png
             var checkmarkGO = new GameObject("Checkmark", typeof(RectTransform));
             checkmarkGO.transform.SetParent(bgGO.transform, false);
             var checkmarkRect = checkmarkGO.GetComponent<RectTransform>();
@@ -270,20 +768,82 @@ namespace Setup.Steps
             checkmarkRect.offsetMin = Vector2.zero;
             checkmarkRect.offsetMax = Vector2.zero;
             var checkmarkImage = checkmarkGO.AddComponent<Image>();
-            // Wird nur bei Aktivierung sichtbar
-            checkmarkImage.color = new Color(0.2f, 0.8f, 0.2f, 1f);
+            
+            // Load checkmark image from Assets/Images/checkmark.png
+            Sprite checkmarkSprite = null;
+            
+            #if UNITY_EDITOR
+            // First try to load as Sprite, then as Texture2D
+            string[] possiblePaths = {
+                "Assets/Images/checkmark.png",
+                "Assets/Images/checkmark.PNG",
+                "Assets/Images/Checkmark.png",
+                "Assets/Images/Checkmark.PNG"
+            };
+            
+            foreach (string path in possiblePaths)
+            {
+                // Try loading as Sprite first
+                checkmarkSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(path);
+                if (checkmarkSprite != null)
+                {
+                    UnityEngine.Debug.Log($"[UI] Found checkmark sprite at: {path}");
+                    break;
+                }
+                
+                // If sprite loading fails, try loading as Texture2D and convert
+                var texture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                if (texture != null)
+                {
+                    checkmarkSprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                    UnityEngine.Debug.Log($"[UI] Found checkmark texture at: {path}, converted to sprite");
+                    break;
+                }
+            }
+            #endif
+            
+            // Fallback: Try Resources.Load
+            if (checkmarkSprite == null)
+            {
+                var texture = Resources.Load<Texture2D>("Images/checkmark");
+                if (texture == null)
+                {
+                    texture = Resources.Load<Texture2D>("checkmark");
+                }
+                if (texture != null)
+                {
+                    checkmarkSprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                    UnityEngine.Debug.Log($"[UI] Created checkmark sprite from Resources texture");
+                }
+            }
+            
+            if (checkmarkSprite != null)
+            {
+                checkmarkImage.sprite = checkmarkSprite;
+                checkmarkImage.color = Color.white; // White tint for the image
+                checkmarkImage.type = Image.Type.Simple; // Ensure it's set to Simple type
+                checkmarkImage.preserveAspect = true; // Preserve aspect ratio
+                UnityEngine.Debug.Log("[UI] Successfully loaded and applied checkmark sprite for VAD toggle");
+            }
+            else
+            {
+                // Fallback to colored rect if image not found
+                checkmarkImage.color = new Color(0.2f, 0.8f, 0.2f, 1f);
+                checkmarkImage.sprite = null; // Ensure no sprite is set for fallback
+                UnityEngine.Debug.LogWarning("[UI] Checkmark image not found at Assets/Images/checkmark.png, using fallback color");
+            }
 
-            // Label
+            // Label - adjusted position to match smaller checkbox
             var labelGO = new GameObject("Label", typeof(RectTransform));
             labelGO.transform.SetParent(toggleGO.transform, false);
             var labelRect = labelGO.GetComponent<RectTransform>();
-            labelRect.anchorMin = new Vector2(1.05f, 0);
+            labelRect.anchorMin = new Vector2(0.12f, 0); // Adjusted from 1.05f to 0.12f to start right after checkbox
             labelRect.anchorMax = new Vector2(2f, 1);
             labelRect.offsetMin = Vector2.zero;
             labelRect.offsetMax = Vector2.zero;
             var label = labelGO.AddComponent<TextMeshProUGUI>();
-            label.text = "Enable VAD";
-            label.fontSize = 14;
+            label.text = "Voice Activity Detection";
+            label.fontSize = 8;
             label.alignment = TextAlignmentOptions.Left;
             label.color = Color.white;
 
@@ -291,7 +851,10 @@ namespace Setup.Steps
             var toggle = toggleGO.AddComponent<Toggle>();
             toggle.targetGraphic = bgImage;
             toggle.graphic = checkmarkImage;
-            toggle.isOn = false; // Standardmäßig aus
+            
+            // Load VAD setting from OpenAISettings
+            var settings = Resources.Load<OpenAISettings>("OpenAISettings");
+            toggle.isOn = settings?.VadType == "server_vad"; // VAD ist aktiv wenn VadType "server_vad" ist
             
             // ColorBlock für bessere visuelle Rückmeldung
             var colors = ColorBlock.defaultColorBlock;

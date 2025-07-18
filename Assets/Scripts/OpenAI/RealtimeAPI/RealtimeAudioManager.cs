@@ -100,7 +100,6 @@ namespace OpenAI.RealtimeAPI
         
         // Simple Silence-Based Stream End Detection
         private float lastAudioTime = 0f; // When we last received audio data
-        private bool hasReceivedAudio = false; // Have we received any audio yet?
         private bool responseComplete = false; // Has OpenAI indicated response is complete?
         private bool buffersEmpty = false; // Are the audio buffers empty?
         private float buffersEmptyTime = 0f; // When buffers became empty
@@ -1383,7 +1382,6 @@ namespace OpenAI.RealtimeAPI
         private void ResetStreamEndDetection()
         {
             lastAudioTime = Time.time;
-            hasReceivedAudio = false;
             responseComplete = false; // Reset response completion flag
             buffersEmpty = false;
             buffersEmptyTime = 0f;
@@ -1428,7 +1426,6 @@ namespace OpenAI.RealtimeAPI
         private void OnAudioDataReceived()
         {
             lastAudioTime = Time.time;
-            hasReceivedAudio = true;
             
             // Log audio data received (less verbose)
             if (Time.time % 1f < 0.1f) // Every ~1 second

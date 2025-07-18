@@ -5,6 +5,10 @@ using System.IO;
 using Diagnostics;
 using Setup.Steps;
 using NPC;
+using System.Linq;
+
+// This ensures MetaXRBuildingBlocksManager is available
+// [MetaXRBuildingBlocksManager is in the same assembly]
 
 public class OpenAINPCMenuSetup : EditorWindow
 {
@@ -12,9 +16,10 @@ public class OpenAINPCMenuSetup : EditorWindow
     public static void ShowWindow()
     {
         OpenAINPCMenuSetup window = GetWindow<OpenAINPCMenuSetup>(true, "OpenAI NPC Quick Setup");
-        window.position = new Rect(Screen.width / 2 - 250, Screen.height / 2 - 300, 500, 800); // Erweiterte Größe
+        window.position = new Rect(Screen.width / 2 - 300, Screen.height / 2 - 350, 600, 920); // Größeres Fenster für mehr Optionen
         window.InitAndCheckAvatar();
         window.CheckLipSyncStatus();
+        window.InitializeMetaXRManager(); // Initialize MetaXR manager
         window.Show();
     }
 
@@ -25,7 +30,6 @@ public class OpenAINPCMenuSetup : EditorWindow
     private GameObject foundAvatarInstance;
 
     private enum CanvasMode { ScreenSpaceOverlay, ScreenSpaceCamera, WorldSpace }
-    private CanvasMode selectedCanvasMode = CanvasMode.WorldSpace;
     private Camera selectedCamera = null;
     private float worldCanvasScale = 0.01f;
     private string openAIApiKey = "";
@@ -36,6 +40,11 @@ public class OpenAINPCMenuSetup : EditorWindow
     private bool lipSyncStatusChecked = false;
     private bool showLipSyncDetails = false;
     private Vector2 scrollPosition;
+
+    // Meta XR Building Blocks
+    private bool setupMetaXRBuildingBlocks = true; // Standardmäßig aktiviert
+    private bool showMetaXRDetails = false;
+    private MetaXRBuildingBlocksManager metaXRManager; // Instance for Building Blocks functionality
 
     private enum LipSyncStatus
     {
@@ -71,6 +80,15 @@ public class OpenAINPCMenuSetup : EditorWindow
         {
             Debug.Log($"[OpenAI NPC Setup] Avatar in Szene gefunden: {foundAvatarInstance.name}");
             showObjectPicker = true; // Zeige trotzdem die erweiterten Optionen
+        }
+    }
+
+    private void InitializeMetaXRManager()
+    {
+        if (metaXRManager == null)
+        {
+            metaXRManager = new MetaXRBuildingBlocksManager();
+            Debug.Log("[OpenAI NPC Setup] MetaXR Building Blocks Manager initialized.");
         }
     }
 
@@ -164,6 +182,11 @@ public class OpenAINPCMenuSetup : EditorWindow
 
         // Main Setup Section
         DrawMainSetupSection();
+
+        GUILayout.Space(15);
+
+        // Meta XR Building Blocks Section
+        DrawMetaXRBuildingBlocksSection();
 
         GUILayout.Space(15);
 
@@ -375,10 +398,6 @@ public class OpenAINPCMenuSetup : EditorWindow
         );
     }
 
-    private Vector3 defaultAvatarPosition = new Vector3(0.894f, 0.076f, -7.871f);
-    private Vector3 defaultAvatarRotation = new Vector3(0f, 180f, 0f);
-    private Vector3 defaultAvatarScale = Vector3.one;
-
     private void DrawMainSetupSection()
     {
         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -447,6 +466,55 @@ public class OpenAINPCMenuSetup : EditorWindow
         EditorGUILayout.EndVertical();
     }
 
+    private void DrawMetaXRBuildingBlocksSection()
+    {
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        
+        // Header mit Toggle
+        EditorGUILayout.BeginHorizontal();
+        setupMetaXRBuildingBlocks = EditorGUILayout.Toggle(setupMetaXRBuildingBlocks, GUILayout.Width(20));
+        EditorGUILayout.LabelField("🏗️ Meta XR Building Blocks", EditorStyles.boldLabel);
+        
+        if (GUILayout.Button(showMetaXRDetails ? "▼ Hide Details" : "▶ Show Details", EditorStyles.miniButton, GUILayout.Width(100)))
+        {
+            showMetaXRDetails = !showMetaXRDetails;
+        }
+        EditorGUILayout.EndHorizontal();
+
+        // Status und Beschreibung
+        if (setupMetaXRBuildingBlocks)
+        {
+            EditorGUILayout.HelpBox("✅ Will setup Camera Rig, Controller Tracking, and Synthetic Hands for complete VR interaction", MessageType.Info);
+        }
+        else
+        {
+            EditorGUILayout.HelpBox("⚠️ Manual VR setup required - ensure Controllers and Interaction System are configured", MessageType.Warning);
+        }
+
+        // Details Section
+        if (showMetaXRDetails)
+        {
+            GUILayout.Space(5);
+            EditorGUILayout.LabelField("Building Blocks to Install:", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("• Camera Rig (VR Camera Setup)", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("• Controller Tracking (Hand Controllers)", EditorStyles.miniLabel);
+            EditorGUILayout.LabelField("• Synthetic Hands (UI Raycasting)", EditorStyles.miniLabel);
+            
+            GUILayout.Space(5);
+            
+            // Manual Building Blocks Button
+            if (GUILayout.Button("Open Meta XR Building Blocks Window", GUILayout.Height(25)))
+            {
+                if (metaXRManager == null) InitializeMetaXRManager();
+                metaXRManager.OpenBuildingBlocksWindow();
+            }
+            
+            EditorGUILayout.HelpBox("Note: These essential Building Blocks will be installed automatically during Quick Setup if enabled above.", MessageType.Info);
+        }
+
+        EditorGUILayout.EndVertical();
+    }
+
     private void DrawActionButtons()
     {
         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
@@ -466,8 +534,13 @@ public class OpenAINPCMenuSetup : EditorWindow
             // Prefab in Szene instanziieren
             GameObject avatarInstance = (GameObject)PrefabUtility.InstantiatePrefab(selectedAvatarPrefab);
             avatarInstance.name = selectedAvatarPrefab.name;
+            // Register as 'CustomAvatar' for UI logic
+            Setup.AvatarManager.Instance.RegisterAvatar("CustomAvatar", avatarInstance);
             Undo.RegisterCreatedObjectUndo(avatarInstance, "Create Avatar from Picker");
             Debug.Log($"[OpenAI NPC Setup] Avatar Prefab instantiated: {avatarInstance.name}");
+
+            // Animation Controller hinzufügen
+            AddAnimationControllerToAvatar(avatarInstance);
 
             // OpenAISettings API Key setzen falls angegeben
             if (!string.IsNullOrEmpty(openAIApiKey) && openAIApiKey != "[EXISTING KEY FOUND]" && openAISettingsAsset != null)
@@ -572,7 +645,7 @@ public class OpenAINPCMenuSetup : EditorWindow
         Debug.Log("[OpenAI NPC Setup] UnityMainThreadDispatcher initialized successfully.");
         
         var openAISettings = Resources.Load<ScriptableObject>("OpenAISettings");
-        var uiPanelSize = new Vector2(1200, 500);
+        var uiPanelSize = new Vector2(600, 350); // Matching MainDemo 15.unity
         var uiPanelPosition = new Vector2(0, 0);
         bool allValid = false;
 
@@ -591,9 +664,20 @@ public class OpenAINPCMenuSetup : EditorWindow
                 canvasMode = "WorldSpace", // Always WorldSpace for XR
                 camera = selectedCamera,
                 worldCanvasScale = worldCanvasScale,
-                lipSyncStatus = lipSyncStatus.ToString()
+                lipSyncStatus = lipSyncStatus.ToString(),
+                canvasSize = new Vector2(1920, 1080), // MainDemo 15.unity canvas size
+                canvasPosition = new Vector3(0, 5.95f, 3), // MainDemo 15.unity canvas position
+                canvasRotation = Vector3.zero,
+                canvasScale = new Vector3(0.01f, 0.01f, 0.01f) // MainDemo 15.unity canvas scale
             }
         );
+
+        // Setup Meta XR Building Blocks if enabled
+        if (setupMetaXRBuildingBlocks)
+        {
+            if (metaXRManager == null) InitializeMetaXRManager();
+            metaXRManager.SetupEssentialBuildingBlocks(setupMetaXRBuildingBlocks);
+        }
 
         if (allValid)
         {
@@ -642,140 +726,49 @@ public class OpenAINPCMenuSetup : EditorWindow
         return null;
     }
 
-    // Separator
-    [MenuItem("OpenAI NPC/Audio Tools/Audio Quick Fix", false, 100)]
-    public static void RunAudioQuickFix()
+    private static void AddAnimationControllerToAvatar(GameObject avatar)
     {
-        Debug.Log("[OpenAI NPC] Running Audio Quick Fix...");
-        
-        // Find RealtimeAudioManager in current scene
-        var audioManager = Object.FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeAudioManager>();
-        if (audioManager == null)
+        // Check if avatar already has an Animator component
+        Animator animator = avatar.GetComponent<Animator>();
+        if (animator == null)
         {
-            EditorUtility.DisplayDialog("Audio Quick Fix", 
-                "No RealtimeAudioManager found in current scene.\n\nPlease open a scene with an OpenAI NPC setup.", 
-                "OK");
-            return;
+            animator = avatar.AddComponent<Animator>();
+            Debug.Log($"[OpenAI NPC Setup] Added Animator component to {avatar.name}");
         }
 
-        try
-        {
-            // Run AudioQuickFixStep
-            var quickFixStep = new AudioQuickFixStep(msg => Debug.Log($"[Audio Quick Fix] {msg}"));
-            quickFixStep.ExecuteSync(null, audioManager.gameObject);
+        // Load RPM Animation Controller
+        RuntimeAnimatorController controller = LoadRPMAnimationController();
 
-            EditorUtility.DisplayDialog("Audio Quick Fix", 
-                "✅ Audio settings optimized!\n\n" +
-                "• Unity audio settings configured\n" +
-                "• Buffer size optimized for stability\n" +
-                "• Diagnostic components added\n\n" +
-                "Check Console for detailed log.", 
-                "OK");
-        }
-        catch (System.Exception ex)
+        if (controller != null)
         {
-            Debug.LogError($"[Audio Quick Fix] Error: {ex.Message}");
-            EditorUtility.DisplayDialog("Audio Quick Fix", 
-                "❌ Audio Quick Fix encountered issues.\n\nCheck Console for details.", 
-                "OK");
-        }
-    }
-
-    [MenuItem("OpenAI NPC/Audio Tools/Audio Diagnostics", false, 101)]
-    public static void RunAudioDiagnostics()
-    {
-        Debug.Log("[OpenAI NPC] Running Audio Diagnostics...");
-        
-        // Find AudioDiagnostics in current scene
-        var audioDiagnostics = Object.FindFirstObjectByType<AudioDiagnostics>();
-        if (audioDiagnostics == null)
-        {
-            EditorUtility.DisplayDialog("Audio Diagnostics", 
-                "No AudioDiagnostics component found in current scene.\n\n" +
-                "Please open a scene with an OpenAI NPC setup, or add AudioDiagnostics component manually.", 
-                "OK");
-            return;
-        }
-
-        // Run diagnostics - the component logs results to Console
-        audioDiagnostics.RunFullDiagnostics();
-        
-        EditorUtility.DisplayDialog("Audio Diagnostics", 
-            "🔍 Audio Diagnostics Complete!\n\n" +
-            "• System audio capabilities checked\n" +
-            "• Microphone devices analyzed\n" +
-            "• Unity audio settings validated\n" +
-            "• Audio drivers tested\n\n" +
-            "See Console for detailed results.", 
-            "OK");
-    }
-
-    [MenuItem("OpenAI NPC/Audio Tools/Audio Troubleshooting Guide", false, 102)]
-    public static void OpenAudioTroubleshootingGuide()
-    {
-        string troubleshootingPath = "Assets/AUDIO_TROUBLESHOOTING.md";
-        if (System.IO.File.Exists(troubleshootingPath))
-        {
-            AssetDatabase.OpenAsset(AssetDatabase.LoadAssetAtPath<TextAsset>(troubleshootingPath));
+            animator.runtimeAnimatorController = controller;
+            Debug.Log($"[OpenAI NPC Setup] Added Animation Controller to {avatar.name}: {controller.name}");
         }
         else
         {
-            EditorUtility.DisplayDialog("Audio Troubleshooting Guide", 
-                "AUDIO_TROUBLESHOOTING.md not found.\n\n" +
-                "Expected location: Assets/AUDIO_TROUBLESHOOTING.md", 
-                "OK");
+            Debug.LogWarning($"[OpenAI NPC Setup] No Animation Controller found for {avatar.name}");
         }
     }
 
-    [MenuItem("OpenAI NPC/Audio Tools/Add Audio Diagnostics to Scene", false, 103)]
-    public static void AddAudioDiagnosticsToScene()
+    private static RuntimeAnimatorController LoadRPMAnimationController()
     {
-        Debug.Log("[OpenAI NPC] Adding AudioDiagnostics to current scene...");
-        
-        // Check if already exists
-        var existing = Object.FindFirstObjectByType<AudioDiagnostics>();
-        if (existing != null)
+        string[] possiblePaths = {
+            "Assets/Ready Player Me/Core/Samples/AvatarCreatorSamples/AvatarCreatorElements/Animation/AnimationController.controller",
+            "Assets/Ready Player Me/Core/Samples/QuickStart/Animations/RpmPlayer.controller",
+            "Assets/Plugins/ReadyPlayerMe/Resources/Animations/RpmPlayer.controller"
+        };
+
+        foreach (string path in possiblePaths)
         {
-            EditorUtility.DisplayDialog("Add Audio Diagnostics", 
-                $"AudioDiagnostics already exists on: {existing.gameObject.name}\n\n" +
-                "Use 'Audio Diagnostics' menu item to run diagnostics.", 
-                "OK");
-            return;
+            RuntimeAnimatorController controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(path);
+            if (controller != null)
+            {
+                Debug.Log($"[OpenAI NPC Setup] Found Animation Controller: {path}");
+                return controller;
+            }
         }
 
-        // Find suitable GameObject to attach to
-        var audioManager = Object.FindFirstObjectByType<OpenAI.RealtimeAPI.RealtimeAudioManager>();
-        var npcController = Object.FindFirstObjectByType<NPCController>();
-        
-        GameObject targetObject = null;
-        if (audioManager != null)
-        {
-            targetObject = audioManager.gameObject;
-        }
-        else if (npcController != null)
-        {
-            targetObject = npcController.gameObject;
-        }
-        else
-        {
-            // Create new GameObject
-            targetObject = new GameObject("Audio Diagnostics");
-            Undo.RegisterCreatedObjectUndo(targetObject, "Create Audio Diagnostics GameObject");
-        }
-
-        // Add AudioDiagnostics component
-        var diagnostics = Undo.AddComponent<AudioDiagnostics>(targetObject);
-        
-        // Mark scene as dirty
-        UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
-            UnityEngine.SceneManagement.SceneManager.GetActiveScene());
-        
-        // Select the object
-        Selection.activeGameObject = targetObject;
-        
-        EditorUtility.DisplayDialog("Add Audio Diagnostics", 
-            $"✅ AudioDiagnostics component added to: {targetObject.name}\n\n" +
-            "You can now use 'Audio Diagnostics' menu item to run diagnostics.", 
-            "OK");
+        Debug.LogWarning("[OpenAI NPC Setup] No RPM Animation Controller found in project");
+        return null;
     }
 }

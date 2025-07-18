@@ -51,6 +51,7 @@ namespace Setup.Steps
             Button buttonComponent = buttonGO.AddComponent<Button>();
             RectTransform rectTransform = buttonGO.GetComponent<RectTransform>();
 
+            // MainDemo 15.unity button positioning structure
             if (name.Contains("Send"))
             {
                 rectTransform.anchorMin = new Vector2(0.91f, 0.05f);
@@ -58,9 +59,22 @@ namespace Setup.Steps
             }
             else
             {
-                float x = 0.1f + index * 0.18f;
-                rectTransform.anchorMin = new Vector2(x, 0.85f);
-                rectTransform.anchorMax = new Vector2(x + 0.16f, 0.95f);
+                // MainDemo 15.unity button layout: Connect(0.1-0.26), Disconnect(0.28-0.44), etc.
+                float[] buttonStarts = { 0.1f, 0.28f, 0.46f, 0.64f, 0.82f };
+                float[] buttonEnds = { 0.26f, 0.44f, 0.62f, 0.8f, 0.98f };
+                
+                if (index < buttonStarts.Length)
+                {
+                    rectTransform.anchorMin = new Vector2(buttonStarts[index], 0.85f);
+                    rectTransform.anchorMax = new Vector2(buttonEnds[index], 0.95f);
+                }
+                else
+                {
+                    // Fallback for additional buttons
+                    float x = 0.1f + index * 0.18f;
+                    rectTransform.anchorMin = new Vector2(x, 0.85f);
+                    rectTransform.anchorMax = new Vector2(x + 0.16f, 0.95f);
+                }
             }
             rectTransform.offsetMin = Vector2.zero;
             rectTransform.offsetMax = Vector2.zero;
@@ -69,7 +83,7 @@ namespace Setup.Steps
             textObj.transform.SetParent(buttonGO.transform, false);
             TextMeshProUGUI textComponent = textObj.AddComponent<TextMeshProUGUI>();
             textComponent.text = text;
-            textComponent.fontSize = 14;
+            textComponent.fontSize = 8; // Smaller font size like MainDemo 15.unity
             textComponent.color = Color.white;
             textComponent.alignment = TextAlignmentOptions.Center;
 
@@ -79,7 +93,7 @@ namespace Setup.Steps
             textRect.offsetMin = Vector2.zero;
             textRect.offsetMax = Vector2.zero;
 
-            log($"✅ Created button: {name}");
+            log($"✅ Created button: {name} (MainDemo 15.unity structure)");
             return buttonComponent;
         }
     }

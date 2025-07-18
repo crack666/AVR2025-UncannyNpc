@@ -51,7 +51,7 @@ namespace Setup.Steps
             placeholder.transform.SetParent(textArea.transform, false);
             TextMeshProUGUI placeholderText = placeholder.AddComponent<TextMeshProUGUI>();
             placeholderText.text = "Type your message here...";
-            placeholderText.fontSize = 12;
+            placeholderText.fontSize = 8;
             placeholderText.color = new Color(1f, 1f, 1f, 0.5f);
             placeholderText.fontStyle = FontStyles.Italic;
             placeholderText.alignment = TextAlignmentOptions.Left;
@@ -66,7 +66,7 @@ namespace Setup.Steps
             text.transform.SetParent(textArea.transform, false);
             TextMeshProUGUI textComponent = text.AddComponent<TextMeshProUGUI>();
             textComponent.text = "";
-            textComponent.fontSize = 12;
+            textComponent.fontSize = 8;
             textComponent.color = Color.white;
             textComponent.alignment = TextAlignmentOptions.Left;
             RectTransform textRect = text.GetComponent<RectTransform>();
