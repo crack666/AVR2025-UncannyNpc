@@ -185,11 +185,20 @@ public class MetaXRBuildingBlocksManager
             {
                 Debug.Log("[MetaXR BB Manager] ✅ OVRCameraRig created successfully.");
                 
-                // Configure OVRManager similar to OVRComprehensiveRigWizard
+                // Set Y position to 0.8 for eye-level height with NPCs
                 var cameraRigGameObject = cameraRigObject as GameObject;
-                if (cameraRigGameObject != null && cameraRigGameObject.TryGetComponent(out object ovrManager))
+                if (cameraRigGameObject != null)
                 {
-                    ConfigureOVRManager(ovrManager);
+                    var transform = cameraRigGameObject.transform;
+                    var currentPosition = transform.position;
+                    transform.position = new Vector3(currentPosition.x, 0.8f, currentPosition.z);
+                    Debug.Log($"[MetaXR BB Manager] ✅ OVRCameraRig positioned at eye-level height (Y: 0.8)");
+                    
+                    // Configure OVRManager similar to OVRComprehensiveRigWizard
+                    if (cameraRigGameObject.TryGetComponent(out object ovrManager))
+                    {
+                        ConfigureOVRManager(ovrManager);
+                    }
                 }
             }
             else
