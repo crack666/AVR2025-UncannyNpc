@@ -539,14 +539,14 @@ namespace Managers
                         // ALWAYS force session restart for voice changes during active sessions
                         
                         Debug.Log($"[UI] Voice change requested during active session - ALWAYS restart required");
-                        UpdateStatus($"Restarting session for voice change to {newVoice}...", systemMessageColor);
+                        UpdateStatus($"Restarting session for voice change to {newVoice.ToString()}...", systemMessageColor);
                         
                         ForceSessionRestartForVoiceChange();
                     }
                     else
                     {
                         // Not connected - just update settings
-                        UpdateStatus($"Voice set to: {newVoice} (will apply on next connection)", systemMessageColor);
+                        UpdateStatus($"Voice set to: {newVoice.ToString()} (will apply on next connection)", systemMessageColor);
                         isVoiceChangeInProgress = false; // Reset flag
                         Debug.Log($"[UI] Voice successfully changed to: {newVoice}");
                     }
@@ -571,8 +571,8 @@ namespace Managers
             {
                 npcController.StopConversation();
                 
-                // Start coroutine for main-thread safe session restart
-                StartCoroutine(SessionRestartCoroutine());
+                // Start coroutine for main-thread safe session restart, passing the current voice name
+                StartCoroutine(SessionRestartCoroutine(voice.ToString()));
             }
             else
             {
@@ -581,7 +581,7 @@ namespace Managers
             }
         }
         
-        private System.Collections.IEnumerator SessionRestartCoroutine()
+        private System.Collections.IEnumerator SessionRestartCoroutine(string voiceName)
         {
             // Force a full disconnect/reconnect cycle on main thread
             bool disconnectSuccess = false;
@@ -627,8 +627,8 @@ namespace Managers
             // Handle results
             if (disconnectSuccess && connectSuccess)
             {
-                // Success - update UI
-                UpdateStatus("Session restarted with new voice", systemMessageColor);
+                // Success - update UI with the specific voice name
+                UpdateStatus($"Session restarted with new voice '{voiceName}'", systemMessageColor);
                 isVoiceChangeInProgress = false; // Reset protection flag
                 Debug.Log("[UI] Voice change session restart completed successfully");
             }

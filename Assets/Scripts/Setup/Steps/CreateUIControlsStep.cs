@@ -124,7 +124,7 @@ namespace Setup.Steps
                 var bgImage = bgGO.AddComponent<Image>();
                 bgImage.color = new Color(0.3f, 0.3f, 0.3f, 1f);
 
-                // Checkmark
+                // Checkmark - Using image from Assets/Images/checkmark.png
                 var checkmarkGO = new GameObject("Checkmark", typeof(RectTransform));
                 checkmarkGO.transform.SetParent(bgGO.transform, false);
                 var checkmarkRect = checkmarkGO.GetComponent<RectTransform>();
@@ -133,7 +133,70 @@ namespace Setup.Steps
                 checkmarkRect.offsetMin = Vector2.zero;
                 checkmarkRect.offsetMax = Vector2.zero;
                 var checkmarkImage = checkmarkGO.AddComponent<Image>();
-                checkmarkImage.color = new Color(0f, 0.8f, 0f, 1f); // Bright green
+                
+                // Load checkmark image from Assets/Images/checkmark.png
+                Sprite checkmarkSprite = null;
+                
+                #if UNITY_EDITOR
+                // First try to load as Sprite, then as Texture2D
+                string[] possiblePaths = {
+                    "Assets/Images/checkmark.png",
+                    "Assets/Images/checkmark.PNG",
+                    "Assets/Images/Checkmark.png",
+                    "Assets/Images/Checkmark.PNG"
+                };
+                
+                foreach (string path in possiblePaths)
+                {
+                    // Try loading as Sprite first
+                    checkmarkSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(path);
+                    if (checkmarkSprite != null)
+                    {
+                        UnityEngine.Debug.Log($"[UI] Found checkmark sprite at: {path}");
+                        break;
+                    }
+                    
+                    // If sprite loading fails, try loading as Texture2D and convert
+                    var texture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                    if (texture != null)
+                    {
+                        checkmarkSprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                        UnityEngine.Debug.Log($"[UI] Found checkmark texture at: {path}, converted to sprite");
+                        break;
+                    }
+                }
+                #endif
+                
+                // Fallback: Try Resources.Load
+                if (checkmarkSprite == null)
+                {
+                    var texture = Resources.Load<Texture2D>("Images/checkmark");
+                    if (texture == null)
+                    {
+                        texture = Resources.Load<Texture2D>("checkmark");
+                    }
+                    if (texture != null)
+                    {
+                        checkmarkSprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                        UnityEngine.Debug.Log($"[UI] Created checkmark sprite from Resources texture");
+                    }
+                }
+                
+                if (checkmarkSprite != null)
+                {
+                    checkmarkImage.sprite = checkmarkSprite;
+                    checkmarkImage.color = Color.white; // White tint for the image
+                    checkmarkImage.type = Image.Type.Simple; // Ensure it's set to Simple type
+                    checkmarkImage.preserveAspect = true; // Preserve aspect ratio
+                    UnityEngine.Debug.Log($"[UI] Successfully loaded and applied checkmark sprite for voice checkbox {i}");
+                }
+                else
+                {
+                    // Fallback to colored rect if image not found
+                    checkmarkImage.color = new Color(0f, 0.8f, 0f, 1f); // Bright green fallback
+                    checkmarkImage.sprite = null; // Ensure no sprite is set for fallback
+                    UnityEngine.Debug.LogWarning("[UI] Checkmark image not found at Assets/Images/checkmark.png, using fallback color");
+                }
 
                 // Label - adjusted for smaller checkbox
                 var labelGO = new GameObject("Label", typeof(RectTransform));
@@ -151,7 +214,7 @@ namespace Setup.Steps
                 label.fontStyle = FontStyles.Normal;
                 label.alignment = TextAlignmentOptions.MidlineLeft;
                 label.color = Color.white;
-                label.enableWordWrapping = true;
+                label.textWrappingMode = TextWrappingModes.Normal;
                 label.overflowMode = TextOverflowModes.Overflow;
 
                 // Toggle Component
@@ -696,7 +759,7 @@ namespace Setup.Steps
             var bgImage = bgGO.AddComponent<Image>();
             bgImage.color = new Color(0.2f, 0.2f, 0.2f, 1f); // Grauer Background statt grün
 
-            // Checkmark - Einfacheres Design ohne dauerhaft sichtbares Inner Check
+            // Checkmark - Using image from Assets/Images/checkmark.png
             var checkmarkGO = new GameObject("Checkmark", typeof(RectTransform));
             checkmarkGO.transform.SetParent(bgGO.transform, false);
             var checkmarkRect = checkmarkGO.GetComponent<RectTransform>();
@@ -705,8 +768,70 @@ namespace Setup.Steps
             checkmarkRect.offsetMin = Vector2.zero;
             checkmarkRect.offsetMax = Vector2.zero;
             var checkmarkImage = checkmarkGO.AddComponent<Image>();
-            // Wird nur bei Aktivierung sichtbar
-            checkmarkImage.color = new Color(0.2f, 0.8f, 0.2f, 1f);
+            
+            // Load checkmark image from Assets/Images/checkmark.png
+            Sprite checkmarkSprite = null;
+            
+            #if UNITY_EDITOR
+            // First try to load as Sprite, then as Texture2D
+            string[] possiblePaths = {
+                "Assets/Images/checkmark.png",
+                "Assets/Images/checkmark.PNG",
+                "Assets/Images/Checkmark.png",
+                "Assets/Images/Checkmark.PNG"
+            };
+            
+            foreach (string path in possiblePaths)
+            {
+                // Try loading as Sprite first
+                checkmarkSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(path);
+                if (checkmarkSprite != null)
+                {
+                    UnityEngine.Debug.Log($"[UI] Found checkmark sprite at: {path}");
+                    break;
+                }
+                
+                // If sprite loading fails, try loading as Texture2D and convert
+                var texture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                if (texture != null)
+                {
+                    checkmarkSprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                    UnityEngine.Debug.Log($"[UI] Found checkmark texture at: {path}, converted to sprite");
+                    break;
+                }
+            }
+            #endif
+            
+            // Fallback: Try Resources.Load
+            if (checkmarkSprite == null)
+            {
+                var texture = Resources.Load<Texture2D>("Images/checkmark");
+                if (texture == null)
+                {
+                    texture = Resources.Load<Texture2D>("checkmark");
+                }
+                if (texture != null)
+                {
+                    checkmarkSprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+                    UnityEngine.Debug.Log($"[UI] Created checkmark sprite from Resources texture");
+                }
+            }
+            
+            if (checkmarkSprite != null)
+            {
+                checkmarkImage.sprite = checkmarkSprite;
+                checkmarkImage.color = Color.white; // White tint for the image
+                checkmarkImage.type = Image.Type.Simple; // Ensure it's set to Simple type
+                checkmarkImage.preserveAspect = true; // Preserve aspect ratio
+                UnityEngine.Debug.Log("[UI] Successfully loaded and applied checkmark sprite for VAD toggle");
+            }
+            else
+            {
+                // Fallback to colored rect if image not found
+                checkmarkImage.color = new Color(0.2f, 0.8f, 0.2f, 1f);
+                checkmarkImage.sprite = null; // Ensure no sprite is set for fallback
+                UnityEngine.Debug.LogWarning("[UI] Checkmark image not found at Assets/Images/checkmark.png, using fallback color");
+            }
 
             // Label - adjusted position to match smaller checkbox
             var labelGO = new GameObject("Label", typeof(RectTransform));
@@ -717,7 +842,7 @@ namespace Setup.Steps
             labelRect.offsetMin = Vector2.zero;
             labelRect.offsetMax = Vector2.zero;
             var label = labelGO.AddComponent<TextMeshProUGUI>();
-            label.text = "Enable VAD";
+            label.text = "Voice Activity Detection";
             label.fontSize = 8;
             label.alignment = TextAlignmentOptions.Left;
             label.color = Color.white;
@@ -726,7 +851,10 @@ namespace Setup.Steps
             var toggle = toggleGO.AddComponent<Toggle>();
             toggle.targetGraphic = bgImage;
             toggle.graphic = checkmarkImage;
-            toggle.isOn = false; // Standardmäßig aus
+            
+            // Load VAD setting from OpenAISettings
+            var settings = Resources.Load<OpenAISettings>("OpenAISettings");
+            toggle.isOn = settings?.VadType == "server_vad"; // VAD ist aktiv wenn VadType "server_vad" ist
             
             // ColorBlock für bessere visuelle Rückmeldung
             var colors = ColorBlock.defaultColorBlock;
