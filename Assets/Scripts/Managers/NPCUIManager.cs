@@ -627,8 +627,8 @@ namespace Managers
             // Handle results
             if (disconnectSuccess && connectSuccess)
             {
-                // Success - update UI with the specific voice name
-                UpdateStatus($"Session restarted with new voice '{voiceName}'", systemMessageColor);
+                // Success - update UI with the specific voice name in green
+                UpdateStatus($"Session restarted with new voice '{voiceName}'", Color.green);
                 isVoiceChangeInProgress = false; // Reset protection flag
                 Debug.Log("[UI] Voice change session restart completed successfully");
             }
