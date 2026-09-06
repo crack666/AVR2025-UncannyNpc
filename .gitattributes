@@ -1,0 +1,24 @@
+# Zeilenenden: im Repo immer LF, im Arbeitsverzeichnis plattformnativ.
+# Ohne das flippen Dateien auf Windows bei jedem Checkout komplett und
+# ueberdecken die echten Aenderungen (festgestellt 2026-08-31).
+* text=auto
+
+# Skripte, die CRLF brauchen
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+*.sln  text eol=crlf
+
+# Shell-Skripte immer LF
+*.sh   text eol=lf
+
+# Binaerdateien nie anfassen
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.exe binary
+*.dll binary
